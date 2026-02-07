@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul 2>&1
-title CDN IP Scanner V1.0 - Setup ^& Run
+title CDN IP Scanner V1.0 - Setup and Run
 color 0B
 
 set "ENV_MARKER=.scanner_env_ok"
@@ -13,9 +13,9 @@ echo ========================================================
 echo.
 
 if exist "%ENV_MARKER%" (
-    echo [*] چک شد و نصب شده. / Checked and installed.
+    echo [*] Checked and installed.
     echo [*] Starting...
-    goto :run
+    goto run
 )
 
 echo [1/4] Checking Python...
@@ -39,7 +39,7 @@ python --version
 echo [OK] Python found.
 echo.
 
-echo [2/4] Installing packages ^(no update^)...
+echo [2/4] Installing packages...
 if exist "requirements.txt" (
     python -m pip install --quiet -r requirements.txt
     if %errorlevel% neq 0 (
@@ -56,7 +56,7 @@ if exist "requirements.txt" (
 )
 echo.
 
-echo [OK] چک شد و نصب شده. / Checked and installed.
+echo [OK] Checked and installed.
 echo %date% %time% > "%ENV_MARKER%"
 echo.
 
