@@ -7,7 +7,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://www.python.org/)
 
 **Professional CDN IP Scanner with AI Optimization**  
-**اسکنر حرفه‌ای IP های CDN با بهینه‌سازی هوش مصنوعی**  
+**اسکنر حرفه ای آی پی های تمیز کلودفلیر و فستلی**  
 **Профессиональный сканер CDN IP с ИИ-оптимизацией**  
 **专业 CDN IP 扫描器，带 AI 优化**
 
