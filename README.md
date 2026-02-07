@@ -92,7 +92,9 @@ python ip_scanner_pro.py
 
 ---
 
-**The application interface is also available in Russian (Русский) and Chinese (中文).**  
+**The application interface is also available in Russian (Русский) and Chinese (中文).**
+Telegram Group | گروه تلگرام
+https://t.me/shahinstgroup
 **رابط برنامه به زبان‌های روسی و چینی هم پشتیبانی می‌شود.**
 
 ---
