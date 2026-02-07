@@ -13,14 +13,15 @@ echo ========================================================
 echo.
 
 if exist "%ENV_MARKER%" (
-    echo [*] Environment already set up. Starting...
+    echo [*] چک شد و نصب شده. / Checked and installed.
+    echo [*] Starting...
     goto :run
 )
 
-echo [1/5] Checking Python...
+echo [1/4] Checking Python...
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [*] Python not found. Trying to install...
+    echo [*] Python not found. Installing...
     winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements 2>nul
     if %errorlevel% neq 0 (
         echo [ERROR] Could not install Python automatically.
@@ -38,11 +39,7 @@ python --version
 echo [OK] Python found.
 echo.
 
-echo [2/5] Upgrading pip...
-python -m pip install --quiet --upgrade pip 2>nul
-echo.
-
-echo [3/5] Installing packages...
+echo [2/4] Installing packages ^(no update^)...
 if exist "requirements.txt" (
     python -m pip install --quiet -r requirements.txt
     if %errorlevel% neq 0 (
@@ -59,12 +56,12 @@ if exist "requirements.txt" (
 )
 echo.
 
-echo [OK] Environment ready. Next runs will skip this check.
+echo [OK] چک شد و نصب شده. / Checked and installed.
 echo %date% %time% > "%ENV_MARKER%"
 echo.
 
 :run
-echo [4/5] Checking files...
+echo [3/4] Checking files...
 if not exist "ip_scanner_pro.py" (
     echo [ERROR] ip_scanner_pro.py not found!
     pause
@@ -73,7 +70,7 @@ if not exist "ip_scanner_pro.py" (
 echo [OK] All files present.
 echo.
 
-echo [5/5] Starting CDN IP Scanner V1.0...
+echo [4/4] Starting CDN IP Scanner V1.0...
 echo ========================================================
 echo.
 timeout /t 1 /nobreak >nul
