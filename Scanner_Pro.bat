@@ -3,12 +3,19 @@ chcp 65001 >nul 2>&1
 title CDN IP Scanner V1.0 - Setup ^& Run
 color 0B
 
+set "ENV_MARKER=.scanner_env_ok"
+
 echo.
-echo ======================================================================
-echo   		CDN IP Scanner V1.0 - shahin salek tootoonchi
-echo   GitHub: github.com/shahinst  ^|  Digicloud Datacenter: digicloud.tr
-echo ======================================================================
+echo ========================================================
+echo    CDN IP Scanner V1.0 - shahin salek tootoonchi
+echo   GitHub: github.com/shahinst  ^|  Digicloud: digicloud.tr
+echo ========================================================
 echo.
+
+if exist "%ENV_MARKER%" (
+    echo [*] Environment already set up. Starting...
+    goto :run
+)
 
 echo [1/5] Checking Python...
 python --version >nul 2>&1
@@ -41,12 +48,22 @@ if exist "requirements.txt" (
     if %errorlevel% neq 0 (
         python -m pip install --user -r requirements.txt
     )
+    if %errorlevel% neq 0 (
+        echo [ERROR] Failed to install packages.
+        pause
+        exit /b 1
+    )
     echo [OK] Packages installed.
 ) else (
     python -m pip install --quiet requests openpyxl
 )
 echo.
 
+echo [OK] Environment ready. Next runs will skip this check.
+echo %date% %time% > "%ENV_MARKER%"
+echo.
+
+:run
 echo [4/5] Checking files...
 if not exist "ip_scanner_pro.py" (
     echo [ERROR] ip_scanner_pro.py not found!
