@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌐 CDN IP Scanner Pro
+# 🌐 CDN IP Scanner Pro 1.7
 
 **High accuracy • Ultra fast • AI powered ⚡**
 
