@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul 2>&1
-title CDN IP Scanner V1.6 - Setup and Run
+title CDN IP Scanner V1.7 - Setup and Run
 color 0B
 
 set "ENV_MARKER=.scanner_env_ok"
