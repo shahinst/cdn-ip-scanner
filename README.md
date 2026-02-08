@@ -158,14 +158,6 @@
 |----------|----------|-------------|-------------------|
 | [![Stars](https://img.shields.io/github/stars/shahinst/cdn-ip-scanner?label=)](https://github.com/shahinst/cdn-ip-scanner/stargazers) | [![Forks](https://img.shields.io/github/forks/shahinst/cdn-ip-scanner?label=)](https://github.com/shahinst/cdn-ip-scanner/network/members) | [![Watchers](https://img.shields.io/github/watchers/shahinst/cdn-ip-scanner?label=)](https://github.com/shahinst/cdn-ip-scanner/watchers) | ![Views](https://komarev.com/ghpvc/?username=shahinst) |
 
-**This repo (stars, forks, size):**
-
-[![CDN IP Scanner Pro](https://github-readme-stats.vercel.app/api/pin?username=shahinst&repo=cdn-ip-scanner&theme=default&hide_border=true)](https://github.com/shahinst/cdn-ip-scanner)
-
-**Language usage in this project:**
-
-<img src="https://github-readme-stats.vercel.app/api/top-langs/?username=shahinst&repo=cdn-ip-scanner&layout=compact&hide_border=true&langs_count=5" alt="Top languages" width="380" />
-
 </div>
 
 <div align="center">
