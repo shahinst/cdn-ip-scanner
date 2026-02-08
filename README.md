@@ -16,7 +16,7 @@
 <a href="https://openpyxl.readthedocs.io/" target="_blank"><img src="https://img.shields.io/badge/Openpyxl-Excel-217346?style=for-the-badge&logo=microsoft-excel&logoColor=white" alt="Openpyxl"></a>
 <a href="https://docs.python.org/3/library/ipaddress.html" target="_blank"><img src="https://img.shields.io/badge/ipaddress-Networks-4B8BBE?style=for-the-badge&logo=python&logoColor=white" alt="ipaddress"></a>
 <a href="https://urllib3.readthedocs.io/" target="_blank"><img src="https://img.shields.io/badge/urllib3-SSL-006699?style=for-the-badge&logo=python&logoColor=white" alt="urllib3"></a>
-<a href="https://github.com/shahinst/cdn-ip-scanner/blob/main/version" target="_blank"><img src="https://img.shields.io/badge/Version-1.6-6C5CE7?style=for-the-badge" alt="Version"></a>
+<a href="https://github.com/shahinst/cdn-ip-scanner/blob/main/version" target="_blank"><img src="https://img.shields.io/badge/Version-1.7-6C5CE7?style=for-the-badge" alt="Version"></a>
 <a href="https://opensource.org/licenses/MIT" target="_blank"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License"></a>
 
 </div>
@@ -118,7 +118,7 @@
 ```
 ├── ip_scanner_pro.py    # Main application
 ├── requirements.txt     # Python dependencies
-├── version              # Current version (e.g. 1.6)
+├── version              # Current version (e.g. 1.7)
 ├── assets/
 │   └── theme.json       # UI theme (dark/light)
 ├── fonts/               # Vazirmatn, Font Awesome, etc.
@@ -164,7 +164,7 @@
 
 | 📥 Downloads / استفاده | 📌 Version |
 |------------------------|------------|
-| Run from source or use **CDN_IP_Scanner_Pro.exe** from [Releases](https://github.com/shahinst/cdn-ip-scanner/releases) (when available) | **1.6** |
+| Run from source or use **CDN_IP_Scanner_Pro.exe** from [Releases](https://github.com/shahinst/cdn-ip-scanner/releases) (when available) | **1.7** |
 
 *برای مشاهدهٔ تعداد دانلودها به صفحهٔ [Releases](https://github.com/shahinst/cdn-ip-scanner/releases) مراجعه کنید.*  
 *For download counts, check the [Releases](https://github.com/shahinst/cdn-ip-scanner/releases) page.*
