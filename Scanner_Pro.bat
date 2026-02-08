@@ -1,13 +1,13 @@
 @echo off
 chcp 65001 >nul 2>&1
-title CDN IP Scanner V1.0 - Setup and Run
+title CDN IP Scanner V1.6 - Setup and Run
 color 0B
 
 set "ENV_MARKER=.scanner_env_ok"
 
 echo.
 echo ========================================================
-echo    CDN IP Scanner V1.0 - shahin salek tootoonchi
+echo    CDN IP Scanner V1.6 - shahin salek tootoonchi
 echo   GitHub: github.com/shahinst  ^|  Digicloud: digicloud.tr
 echo ========================================================
 echo.
@@ -70,7 +70,7 @@ if not exist "ip_scanner_pro.py" (
 echo [OK] All files present.
 echo.
 
-echo [4/4] Starting CDN IP Scanner V1.0...
+echo [4/4] Starting CDN IP Scanner V1.6...
 echo ========================================================
 echo.
 timeout /t 1 /nobreak >nul
