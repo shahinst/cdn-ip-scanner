@@ -123,8 +123,7 @@
 │   └── theme.json       # UI theme (dark/light)
 ├── fonts/               # Vazirmatn, Font Awesome, etc.
 ├── Scanner_Pro.bat      # Quick run (Windows)
-├── exe_build/           # Build EXE (PyInstaller)
-└── ScannerPro_exe/      # Output: EXE + requirements + version
+
 ```
 
 ---
@@ -201,8 +200,8 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 <div align="center">
 
-**Made with ❤️ for network engineers and CDN users**
+**Made with ❤️**
 
-**ساخته شده با ❤️ برای مهندسان شبکه و کاربران CDN**
+**ساخته شده با ❤️ **
 
 </div>
