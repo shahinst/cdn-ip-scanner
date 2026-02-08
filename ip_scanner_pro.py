@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-CDN IP Scanner V1.6
+CDN IP Scanner V1.7
 Author: شاهین سالک توتونچی (shahin salek tootoonchi)
 GitHub: github.com/shahinst
 Website: digicloud.tr
@@ -16,13 +16,14 @@ import math
 import json
 import time
 import random
-from queue import Queue
+from queue import Queue, Empty
 from datetime import datetime
 
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext, filedialog
 from tkinter import font as tkfont
 
+import bisect
 import ipaddress
 import requests
 import urllib3
@@ -101,7 +102,7 @@ YOUTUBE_URL = "https://www.youtube.com/@shaahinst"
 # ===== Translations (en, fa, zh, ru) =====
 TRANSLATIONS = {
     "en": {
-        "app_title": "CDN IP Scanner V1.6",
+        "app_title": "CDN IP Scanner V1.7",
         "app_subtitle": "High accuracy • Ultra fast • AI powered ⚡",
         "loading": "Loading...",
         "choose_language": "Choose language",
@@ -256,9 +257,24 @@ TRANSLATIONS = {
         "reset_data_btn": "Reset data 🔄",
         "reset_data_confirm": "Delete all config files (settings, last scan, cache, operator data) and restart the app?",
         "reset_data_done": "Data deleted. Restarting...",
+        "confirm_start_title": "Start scan",
+        "confirm_start_message": "Do you want to start the scan?",
+        "confirm_start_yes": "Yes",
+        "confirm_start_no": "No",
+        "confirm_clear_title": "Previous data",
+        "confirm_clear_message": "Do you want to delete all previously scanned IPs and start from the beginning? If you click No, previous data is kept and the scan continues from the remaining IPs. If you click Yes, all previous IPs are deleted and the scan starts from the beginning.",
+        "confirm_clear_yes": "Yes, clear and start fresh",
+        "confirm_clear_no": "No, keep data and continue",
+        "confirm_stop_title": "Stop scan",
+        "confirm_stop_message": "Are you sure you want to stop?",
+        "confirm_stop_yes": "Yes",
+        "confirm_stop_no": "No",
+        "ping_suitable": "Suitable",
+        "ping_average": "Average",
+        "latency": "Latency",
     },
     "fa": {
-        "app_title": "CDN IP Scanner V1.6",
+        "app_title": "CDN IP Scanner V1.7",
         "app_subtitle": "دقت بالا • سرعت فوق‌العاده • قدرت هوش مصنوعی ⚡",
         "loading": "در حال بارگذاری...",
         "choose_language": "زبان را انتخاب کنید",
@@ -413,9 +429,24 @@ TRANSLATIONS = {
         "reset_data_btn": "حذف داده‌های قبلی 🔄",
         "reset_data_confirm": "همهٔ فایل‌های کانفیگ (تنظیمات، آخرین اسکن، کش، دادهٔ اپراتورها) حذف شوند و برنامه دوباره راه‌اندازی شود؟",
         "reset_data_done": "داده‌ها حذف شد. در حال راه‌اندازی مجدد...",
+        "confirm_start_title": "شروع اسکن",
+        "confirm_start_message": "تمایل داری اسکن را شروع کنی؟",
+        "confirm_start_yes": "بله",
+        "confirm_start_no": "خیر",
+        "confirm_clear_title": "داده‌های قبلی",
+        "confirm_clear_message": "تمایل داری آی‌پی‌های قبلی که اسکن شده حذف بشه و از ابتدا شروع بشه؟ اگر خیر بزنی داده‌های قبلی می‌مونه و اسکن از ادامهٔ آی‌پی‌های قبلی شروع میشه. اگر بله بزنی تمام آی‌پی‌های قبلی حذف و از ابتدا شروع میشه.",
+        "confirm_clear_yes": "بله، حذف و از اول",
+        "confirm_clear_no": "خیر، نگه دار و ادامه بده",
+        "confirm_stop_title": "توقف اسکن",
+        "confirm_stop_message": "مطمئنی می‌خوای توقف کنی؟",
+        "confirm_stop_yes": "بله",
+        "confirm_stop_no": "خیر",
+        "ping_suitable": "مناسب",
+        "ping_average": "متوسط",
+        "latency": "تأخیر",
     },
     "zh": {
-        "app_title": "CDN IP 扫描器 V1.6",
+        "app_title": "CDN IP 扫描器 V1.7",
         "app_subtitle": "高精度 • 超快 • AI 驱动 ⚡",
         "loading": "加载中...",
         "choose_language": "选择语言",
@@ -570,9 +601,24 @@ TRANSLATIONS = {
         "country_iran": "伊朗",
         "country_russia": "俄罗斯",
         "country_china": "中国",
+        "confirm_start_title": "开始扫描",
+        "confirm_start_message": "是否要开始扫描？",
+        "confirm_start_yes": "是",
+        "confirm_start_no": "否",
+        "confirm_clear_title": "之前的数据",
+        "confirm_clear_message": "是否要删除之前扫描过的所有 IP 并从头开始？点击否则保留之前的数据并从剩余 IP 继续扫描。点击是则删除所有之前的 IP 并从头开始。",
+        "confirm_clear_yes": "是，清除并重新开始",
+        "confirm_clear_no": "否，保留并继续",
+        "confirm_stop_title": "停止扫描",
+        "confirm_stop_message": "确定要停止吗？",
+        "confirm_stop_yes": "是",
+        "confirm_stop_no": "否",
+        "ping_suitable": "合适",
+        "ping_average": "一般",
+        "latency": "延迟",
     },
     "ru": {
-        "app_title": "CDN IP Сканер V1.6",
+        "app_title": "CDN IP Сканер V1.7",
         "app_subtitle": "Точность • Скорость • ИИ ⚡",
         "loading": "Загрузка...",
         "choose_language": "Выберите язык",
@@ -727,6 +773,21 @@ TRANSLATIONS = {
         "reset_data_btn": "Сброс данных 🔄",
         "reset_data_confirm": "Удалить все конфиги (настройки, последнее сканирование, кэш, данные операторов) и перезапустить приложение?",
         "reset_data_done": "Данные удалены. Перезапуск...",
+        "confirm_start_title": "Начать сканирование",
+        "confirm_start_message": "Вы хотите начать сканирование?",
+        "confirm_start_yes": "Да",
+        "confirm_start_no": "Нет",
+        "confirm_clear_title": "Предыдущие данные",
+        "confirm_clear_message": "Удалить все ранее просканированные IP и начать с начала? Нет — данные сохраняются и сканирование продолжается с оставшихся IP. Да — все предыдущие IP удаляются и сканирование начинается с начала.",
+        "confirm_clear_yes": "Да, очистить и начать",
+        "confirm_clear_no": "Нет, сохранить и продолжить",
+        "confirm_stop_title": "Остановить сканирование",
+        "confirm_stop_message": "Вы уверены, что хотите остановить?",
+        "confirm_stop_yes": "Да",
+        "confirm_stop_no": "Нет",
+        "ping_suitable": "Подходящий",
+        "ping_average": "Средний",
+        "latency": "Задержка",
     },
 }
 
@@ -818,7 +879,7 @@ class AIOptimizer:
 CDN_TRACE_PATH = "/cdn-cgi/trace"
 HTTPS_PORTS = {443, 8443, 2053, 2083, 2087, 2096}
 HTTP_PORTS = {80, 8080, 2052, 2082, 2086, 2095}
-CDN_CHECK_ATTEMPTS = 5
+CDN_CHECK_ATTEMPTS = 3
 CDN_CHECK_MIN_SUCCESS = 1
 CDN_HOST_HEADER = "www.cloudflare.com"
 
@@ -832,8 +893,8 @@ def _cdn_trace_url(ip_str, port):
 class UltraScanner:
     def __init__(self):
         self.ai = AIOptimizer()
-        self.max_workers = 550
-        self.timeout = 2.0
+        self.max_workers = 800
+        self.timeout = 1.8
         self.max_latency_ms = 9999
         self.failed_cache = set()
         self.update_queue = None
@@ -890,7 +951,7 @@ class UltraScanner:
             return None
         
         result = {'ip': ip_str, 'open_ports': [], 'ping': None}
-        timeout_sec = min(10, max(2.0, self.max_latency_ms / 1000.0 * 1.5))
+        timeout_sec = min(8, max(1.2, self.max_latency_ms / 1000.0 * 1.2))
         
         try:
             for port in ports:
@@ -921,15 +982,27 @@ class UltraScanner:
                 self.update_queue.put(("ip_status", (ip_str, False, None, [])))
             return None
     
-    def batch_scan(self, ips, ports):
+    def batch_scan(self, ips, ports, progress_queue=None, progress_total=None, progress_start=0, progress_start_time=None, progress_callback=None):
         results = []
         n = len(ips)
+        n_completed = 0
         # برای یک یا دو آی‌پی تایم‌اوت طولانی‌تر تا خطای «futures unfinished» ندهد
         timeout_sec = max(120, self.timeout * max(n, 1) + 60) if n <= 2 else max(60, self.timeout * n // 10 + 30)
         with ThreadPoolExecutor(max_workers=self.max_workers) as ex:
             futures = {ex.submit(self.check, ip, ports): ip for ip in ips}
             try:
                 for future in as_completed(futures, timeout=timeout_sec):
+                    n_completed += 1
+                    if progress_queue is not None and progress_total is not None and progress_total > 0:
+                        done = progress_start + n_completed
+                        elapsed = (time.time() - progress_start_time) if progress_start_time else 0
+                        speed = done / elapsed if elapsed > 0 else 0
+                        progress_queue.put(("progress", (done, progress_total, speed, elapsed)))
+                        if progress_callback is not None:
+                            try:
+                                progress_callback(done, progress_total, speed, elapsed)
+                            except Exception:
+                                pass
                     try:
                         result = future.result()
                         if result:
@@ -1336,7 +1409,7 @@ class ExcelExporter:
 class CDNScannerPro:
     def __init__(self, root):
         self.root = root
-        self.root.title("CDN IP Scanner V1.6")
+        self.root.title("CDN IP Scanner V1.7")
         
         # مسیر فونت‌ها: Vazirmatn یا در صورت وجود EV Sam (فونت ای وی سام)
         self._font_dir = os.path.join(RESOURCE_DIR, "fonts")
@@ -1401,6 +1474,7 @@ class CDNScannerPro:
         self.ip_check_method = tk.StringVar(value="internet")  # internet | agent
         
         self.scanned_closed = set()  # آی‌پی‌هایی که قبلاً اسکن شده و پورت باز نداشتند (ذخیرهٔ دائمی)
+        self._operator_networks_cache = None  # کش رنج اپراتورها برای چک سریع بدون I/O
         self.ping_min = 0
         self.ping_max = 9999
         self.scan_ports = [443, 80, 8443, 2053, 2083, 2087, 2096]
@@ -1872,16 +1946,16 @@ class CDNScannerPro:
                 ping_val = cell.get("ping")
                 mini = {'ip': ip_str, 'open_ports': open_ports, 'ping': ping_val, 'operator': op_name}
                 score = self._calc_score(mini)
-                score_str = self.num(int(score)) + "/" + self.num(100)
+                quality_str = self._ping_quality_label(ping_val)
                 ports_str = " ".join([f"{p}✅" for p in open_ports]) if open_ports else "—"
                 if ping_val is None or ping_val >= 1000:
                     ping_str = "—" if ping_val is None else self.t("ping_unsuitable")
                 else:
                     ping_str = self.num(int(round(ping_val))) + " ms"
                 op_str = op_name + "✅"
-                rows.append((score_str, ports_str, ping_str, ip_str, op_str, score))
-        for idx, (score_str, ports_str, ping_str, ip_str, op_str, score) in enumerate(sorted(rows, key=lambda x: -x[5]), 1):
-            self.tree.insert("", tk.END, values=(score_str, ports_str, ping_str, ip_str, op_str, "#" + self.num(idx)))
+                rows.append((quality_str, ports_str, ping_str, ip_str, op_str, score))
+        for idx, (quality_str, ports_str, ping_str, ip_str, op_str, score) in enumerate(sorted(rows, key=lambda x: -x[5]), 1):
+            self.tree.insert("", tk.END, values=(quality_str, ports_str, ping_str, ip_str, op_str, "#" + self.num(idx)))
         self.root.update_idletasks()
     
     def _load_config(self):
@@ -1996,7 +2070,7 @@ class CDNScannerPro:
             tk.Label(self.loading_frame, text=char, font=fa_f, bg='#1e1e2e', fg=color).pack(pady=(80, 15))
         else:
             tk.Label(self.loading_frame, text="🚀", font=("Segoe UI", 72), bg='#1e1e2e', fg='#89b4fa').pack(pady=(80, 15))
-        tk.Label(self.loading_frame, text="CDN IP Scanner V1.6", font=("Segoe UI", 28, "bold"), bg='#1e1e2e', fg='#cdd6f4').pack()
+        tk.Label(self.loading_frame, text="CDN IP Scanner V1.7", font=("Segoe UI", 28, "bold"), bg='#1e1e2e', fg='#cdd6f4').pack()
         
         lang_frame = tk.Frame(self.loading_frame, bg='#1e1e2e')
         lang_frame.pack(pady=25)
@@ -2173,7 +2247,7 @@ class CDNScannerPro:
         stats_frame = tk.Frame(parent, bg=self.theme['bg'])
         tval = self.get_target_internal()
         tdisp = self.num(tval) if tval != "All" else self.t("target_all")
-        stats_icons = [("bullseye", "target", tdisp, "target_label"), ("bolt", "speed", self.num(0) + " IP/s", "speed_label"), ("check", "found", self.num(0), "found_label"), ("clock", "time", self.num(0) + "s", "time_label")]
+        stats_icons = [("bullseye", "target", tdisp, "target_label"), ("bolt", "latency", "— ms", "speed_label"), ("check", "found", self.num(0), "found_label"), ("clock", "time", self.num(0) + "s", "time_label")]
         for idx, (icon_name, key, value, var_name) in enumerate(stats_icons):
             card = tk.Frame(stats_frame, bg=self.theme['card_bg'], relief=tk.FLAT, bd=0, highlightbackground=self.layout.get('border_highlight', '#525252'), highlightthickness=1)
             card.grid(row=0, column=idx, padx=SECTION_PADDING // 2, pady=SECTION_PADDING // 2, sticky='ew')
@@ -2320,6 +2394,125 @@ class CDNScannerPro:
         """Path to save operator ranges JSON (only FA)."""
         return os.path.join(BASE_DIR, f"operator_ranges_{operator_key}.json")
     
+    def _invalidate_operator_networks_cache(self):
+        """باطل کردن کش رنج اپراتورها (بعد از fetch یا تغییر فایل)."""
+        if hasattr(self, "_operator_networks_cache"):
+            self._operator_networks_cache = None
+    
+    def _build_operator_networks_cache(self):
+        """ساخت یک‌بارهٔ کش: بازه‌های عددی برای جستجوی O(log n) با bisect — بدون I/O و پارس رشته در مسیر داغ."""
+        if getattr(self, "_operator_networks_cache", None) is not None:
+            return self._operator_networks_cache
+        ops = self.get_operators_for_current_context()
+        by_op_cidrs = {}
+        op_names = {}
+        merged_cidrs = []
+        intervals = []
+        for op_key, op_info in ops.items():
+            if op_key not in OPERATORS_IRAN and op_key not in OPERATORS_CHINA and op_key not in OPERATORS_RUSSIA:
+                continue
+            path = self._operator_ranges_file(op_key)
+            if not os.path.isfile(path):
+                continue
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    d = json.load(f)
+            except Exception:
+                continue
+            op_names[op_key] = op_info.get("name", op_key)
+            cidrs = []
+            for p in d.get("prefixes") or []:
+                s = (p.get("prefix") if isinstance(p, dict) else str(p)).strip()
+                if not s or "/" not in s or ":" in s:
+                    continue
+                try:
+                    net = ipaddress.ip_network(s, strict=False)
+                    if net.version != 4:
+                        continue
+                    cidrs.append(s)
+                    start_int = int(net.network_address)
+                    end_int = int(net.broadcast_address)
+                    length = end_int - start_int
+                    intervals.append((start_int, end_int, op_key, length))
+                    merged_cidrs.append(s)
+                except ValueError:
+                    continue
+            if cidrs:
+                by_op_cidrs[op_key] = cidrs
+        intervals.sort(key=lambda x: (x[0], x[3]))
+        starts = [x[0] for x in intervals]
+        self._operator_networks_cache = {
+            "by_op_cidrs": by_op_cidrs,
+            "merged_cidrs": merged_cidrs,
+            "intervals": intervals,
+            "starts": starts,
+            "op_names": op_names,
+        }
+        return self._operator_networks_cache
+    
+    def _operator_for_ip_int(self, ip_int):
+        """برگرداندن op_key برای یک IP (عدد ۳۲بیتی) در O(log n) — طولانی‌ترین پیشوند. بدون پارس و بدون I/O."""
+        cache = self._build_operator_networks_cache()
+        intervals = cache["intervals"]
+        starts = cache["starts"]
+        if not intervals:
+            return None
+        i = bisect.bisect_right(starts, ip_int) - 1
+        if i < 0:
+            return None
+        best = None
+        best_len = 2**32
+        for j in range(i, -1, -1):
+            s, e, op_key, length = intervals[j]
+            if s > ip_int:
+                break
+            if e >= ip_int and length < best_len:
+                best = op_key
+                best_len = length
+        return best
+    
+    def _operator_for_ip(self, ip_str):
+        """برگرداندن op_key برای یک IP (رشته) — یک بار پارس، بعد O(log n)."""
+        try:
+            ip = ipaddress.ip_address(ip_str)
+            if ip.version != 4:
+                return None
+            return self._operator_for_ip_int(int(ip))
+        except ValueError:
+            return None
+    
+    def _operator_for_ips_bulk(self, ip_list):
+        """برگرداندن dict ip_str -> op_key برای لیست IPها — بهینه برای ۲۰۰+ IP در کمتر از ۱ ثانیه."""
+        cache = self._build_operator_networks_cache()
+        intervals = cache["intervals"]
+        starts = cache["starts"]
+        out = {}
+        if not intervals:
+            return out
+        for ip_str in ip_list:
+            try:
+                ip = ipaddress.ip_address(ip_str)
+                if ip.version != 4:
+                    continue
+                ip_int = int(ip)
+                i = bisect.bisect_right(starts, ip_int) - 1
+                if i < 0:
+                    continue
+                best = None
+                best_len = 2**32
+                for j in range(i, -1, -1):
+                    s, e, op_key, length = intervals[j]
+                    if s > ip_int:
+                        break
+                    if e >= ip_int and length < best_len:
+                        best = op_key
+                        best_len = length
+                if best is not None:
+                    out[ip_str] = best
+            except ValueError:
+                continue
+        return out
+    
     def _load_operator_count(self, operator_key):
         """Return saved count for operator from file, or None."""
         path = self._operator_ranges_file(operator_key)
@@ -2333,33 +2526,19 @@ class CDNScannerPro:
             return None
     
     def _get_operator_ranges_for(self, op_key):
-        """رنج‌های ذخیره‌شدهٔ یک اپراتور (لیست CIDR)."""
+        """رنج‌های ذخیره‌شدهٔ یک اپراتور (لیست CIDR) — از کش استفاده می‌کند."""
         if op_key not in OPERATORS_IRAN and op_key not in OPERATORS_CHINA and op_key not in OPERATORS_RUSSIA:
             return []
-        path = self._operator_ranges_file(op_key)
-        if not os.path.isfile(path):
-            return []
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                d = json.load(f)
-            out = []
-            for p in d.get("prefixes") or []:
-                s = (p.get("prefix") if isinstance(p, dict) else str(p)).strip()
-                if s and "/" in s and ":" not in s:
-                    out.append(s)
-            return out
-        except Exception:
-            return []
+        cache = self._build_operator_networks_cache()
+        return list(cache["by_op_cidrs"].get(op_key, []))
     
     def _get_operator_merged_ranges(self):
-        """در حالت اپراتور: ادغام همهٔ رنج‌های ذخیره‌شدهٔ اپراتورها به‌صورت لیست CIDR."""
-        out = []
-        for op_key in self.get_operators_for_current_context():
-            out.extend(self._get_operator_ranges_for(op_key))
-        return out
+        """در حالت اپراتور: ادغام همهٔ رنج‌های ذخیره‌شدهٔ اپراتورها به‌صورت لیست CIDR — از کش."""
+        cache = self._build_operator_networks_cache()
+        return list(cache["merged_cidrs"])
     
     def _get_user_operator(self):
-        """با IP عمومی کاربر، اپراتور فعلی را از روی رنج‌های ذخیره‌شده تشخیص بده. نام اپراتور یا None."""
+        """با IP عمومی کاربر، اپراتور فعلی را از روی کش (جستجوی O(log n)) تشخیص بده."""
         try:
             r = requests.get("https://api.ipify.org", timeout=6)
             r.raise_for_status()
@@ -2369,33 +2548,19 @@ class CDNScannerPro:
         if not user_ip_s:
             return None
         try:
-            user_ip = ipaddress.ip_address(user_ip_s)
+            ip = ipaddress.ip_address(user_ip_s)
+            if ip.version != 4:
+                return None
+            op_key = self._operator_for_ip_int(int(ip))
         except ValueError:
             return None
-        for op_key, op_info in self.get_operators_for_current_context().items():
-            path = self._operator_ranges_file(op_key)
-            if not os.path.isfile(path):
-                continue
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    d = json.load(f)
-                prefixes = d.get("prefixes") or []
-                for p in prefixes:
-                    s = (p.get("prefix") if isinstance(p, dict) else str(p)).strip()
-                    if not s or "/" not in s or ":" in s:
-                        continue
-                    try:
-                        net = ipaddress.ip_network(s, strict=False)
-                        if user_ip in net:
-                            return op_info["name"]
-                    except ValueError:
-                        continue
-            except Exception:
-                continue
-        return None
+        if op_key is None:
+            return None
+        cache = self._build_operator_networks_cache()
+        return cache["op_names"].get(op_key, op_key)
     
     def _get_user_operator_key(self):
-        """همان تشخیص اپراتور ولی برگرداندن کلید (irancell, mci, ...) برای ذخیره در ماتریس."""
+        """همان تشخیص اپراتور ولی برگرداندن کلید — O(log n)، بدون I/O در مسیر داغ."""
         try:
             r = requests.get("https://api.ipify.org", timeout=6)
             r.raise_for_status()
@@ -2405,29 +2570,12 @@ class CDNScannerPro:
         if not user_ip_s:
             return None
         try:
-            user_ip = ipaddress.ip_address(user_ip_s)
+            ip = ipaddress.ip_address(user_ip_s)
+            if ip.version != 4:
+                return None
+            return self._operator_for_ip_int(int(ip))
         except ValueError:
             return None
-        for op_key, op_info in self.get_operators_for_current_context().items():
-            path = self._operator_ranges_file(op_key)
-            if not os.path.isfile(path):
-                continue
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    d = json.load(f)
-                for p in d.get("prefixes") or []:
-                    s = (p.get("prefix") if isinstance(p, dict) else str(p)).strip()
-                    if not s or "/" not in s or ":" in s:
-                        continue
-                    try:
-                        net = ipaddress.ip_network(s, strict=False)
-                        if user_ip in net:
-                            return op_key
-                    except ValueError:
-                        continue
-            except Exception:
-                continue
-        return None
     
     def _operator_matrix_file(self):
         """مسیر فایل ذخیرهٔ وضعیت هر IP در هر اپراتور (وایت/بلاک از اسکن واقعی)."""
@@ -2480,6 +2628,7 @@ class CDNScannerPro:
                 try:
                     with open(path, "w", encoding="utf-8") as f:
                         json.dump(data, f, ensure_ascii=False, indent=2)
+                    self._invalidate_operator_networks_cache()
                 except Exception:
                     pass
             def update_ui():
@@ -2514,6 +2663,7 @@ class CDNScannerPro:
                             json.dump(data, f, ensure_ascii=False, indent=2)
                     except Exception:
                         pass
+            self._invalidate_operator_networks_cache()
             self.root.after(0, self._update_target_display)
         threading.Thread(target=do_all, daemon=True).start()
     
@@ -2976,8 +3126,47 @@ class CDNScannerPro:
     
     PROGRESS_BAR_WIDTH = 400
     
+    def _update_elapsed_timer(self):
+        """هر ۱ ثانیه باکس زمان را به‌روز می‌کند (از ۱ ثانیه تا پایان اسکن)."""
+        if not getattr(self, "is_scanning", False):
+            return
+        try:
+            if hasattr(self, "time_label") and self.time_label.winfo_exists():
+                elapsed = max(1, int(time.time() - self.start_time))
+                self.time_label.config(text=self.num(elapsed) + "s")
+        except Exception:
+            pass
+        self.root.after(1000, self._update_elapsed_timer)
+
+    def _update_speed_display(self):
+        """هر ۱۰۰ میلی‌ثانیه باکس سرعت را از شمارندهٔ اسکن به‌روز می‌کند (مثل باکس زمان)."""
+        if not getattr(self, "is_scanning", False):
+            return
+        try:
+            if hasattr(self, "speed_label") and self.speed_label.winfo_exists():
+                n = getattr(self, "_scanned_count", 0)
+                self.speed_label.config(text=self.num(n))
+        except Exception:
+            pass
+        self.root.after(100, self._update_speed_display)
+
+    def _update_latency_display(self):
+        """هر ۱ ثانیه باکس Latency را با میانگین پینگ فعلی به‌روز می‌کند."""
+        if not getattr(self, "is_scanning", False):
+            return
+        try:
+            if hasattr(self, "speed_label") and self.speed_label.winfo_exists():
+                lat = getattr(self, "_current_latency_ms", None)
+                if lat is not None:
+                    self.speed_label.config(text=self.num(int(lat)) + " ms")
+                else:
+                    self.speed_label.config(text="— ms")
+        except Exception:
+            pass
+        self.root.after(1000, self._update_latency_display)
+    
     def _set_progress_percent(self, percent):
-        """تنظیم نوار پیشرفت بر اساس درصد ۰–۱۰۰؛ در ۱۰۰٪ حتماً تا انتها پر شود."""
+        """تنظیم نوار پیشرفت بر اساس درصد ۰–۱۰۰؛ اگر «فقط تمیز» فعال باشد نوار سبز."""
         percent = max(0, min(100, float(percent)))
         if not hasattr(self, '_progress_inner') or not hasattr(self, '_progress_outer'):
             return
@@ -2987,6 +3176,11 @@ class CDNScannerPro:
         except Exception:
             return
         try:
+            only_clean = getattr(self, "filter_only_clean_var", None) and self.filter_only_clean_var.get()
+            if only_clean:
+                self._progress_inner.config(bg="#22c55e")
+            else:
+                self._progress_inner.config(bg=self.layout.get('button_border', '#525252'))
             total_w = self._progress_outer.winfo_width()
             if total_w <= 0:
                 total_w = self.PROGRESS_BAR_WIDTH
@@ -3366,55 +3560,82 @@ class CDNScannerPro:
             except Exception as e:
                 messagebox.showerror(self.t("error_title"), self.t("save_error").format(str(e)))
     
+    def _ask_yes_no(self, title_key, message_key, yes_key, no_key):
+        """پنجرهٔ بله/خیر؛ برگردان True اگر بله، False اگر خیر."""
+        win = tk.Toplevel(self.root)
+        win.title(self.t(title_key))
+        win.configure(bg=self.theme['bg'])
+        win.resizable(False, False)
+        win.transient(self.root)
+        win.grab_set()
+        tk.Label(win, text=self.t(message_key), font=self.font(11), bg=self.theme['bg'], fg=self.theme['fg'], wraplength=420).pack(padx=24, pady=16)
+        btn_f = tk.Frame(win, bg=self.theme['bg'])
+        btn_f.pack(pady=(0, 16))
+        result = [None]
+        def on_yes():
+            result[0] = True
+            win.destroy()
+        def on_no():
+            result[0] = False
+            win.destroy()
+        bs = self._button_style()
+        self._make_button(btn_f, self.t(yes_key), on_yes, font=self.font(10), width=bs['width'], padx=bs['padx'], pady=bs['pady']).pack(side=tk.LEFT, padx=8)
+        self._make_button(btn_f, self.t(no_key), on_no, font=self.font(10), width=bs['width'], padx=bs['padx'], pady=bs['pady']).pack(side=tk.LEFT, padx=8)
+        win.wait_window()
+        return result[0]
+
     def start_scan(self):
         if self.is_scanning:
             return
         
-        # حتماً باید حداقل یک رنج انتخاب شده باشد
         selected = self.get_selected_ranges()
         if not selected:
             messagebox.showwarning(self.t("error_title"), self.t("select_range_first"))
             return
         
-        # آی‌پی‌های بلاک‌شدهٔ قبلی را پاک نمی‌کنیم؛ از کش بارگذاری‌شده استفاده می‌کنیم و در صورت وجود سؤال می‌پرسیم
-        rescan_closed = True
-        if self.scanned_closed:
-            n = len(self.scanned_closed)
-            msg = self.t("rescan_blocked_message").format(self.num(n))
-            win = tk.Toplevel(self.root)
-            win.title(self.t("rescan_closed_title"))
-            win.configure(bg=self.theme['bg'])
-            win.resizable(False, False)
-            win.transient(self.root)
-            win.grab_set()
-            tk.Label(win, text=msg, font=self.font(11), bg=self.theme['bg'], fg=self.theme['fg'], wraplength=400).pack(padx=24, pady=16)
-            btn_f = tk.Frame(win, bg=self.theme['bg'])
-            btn_f.pack(pady=(0, 16))
-            dialog_result = [True]
-            def on_yes():
-                dialog_result[0] = True
-                win.destroy()
-            def on_no():
-                dialog_result[0] = False
-                win.destroy()
-            bs = self._button_style()
-            self._make_button(btn_f, self.t("rescan_yes"), on_yes, font=self.font(10), width=bs['width'], padx=bs['padx'], pady=bs['pady']).pack(side=tk.LEFT, padx=8)
-            self._make_button(btn_f, self.t("rescan_no"), on_no, font=self.font(10), width=bs['width'], padx=bs['padx'], pady=bs['pady']).pack(side=tk.LEFT, padx=8)
-            win.wait_window()
-            rescan_closed = dialog_result[0]
+        # دیالوگ اول: تمایل داری شروع کنی؟
+        if self._ask_yes_no("confirm_start_title", "confirm_start_message", "confirm_start_yes", "confirm_start_no") is not True:
+            return
+        
+        # دیالوگ دوم: حذف آی‌پی‌های قبلی و از اول؟ (فقط اگر دادهٔ قبلی وجود دارد)
+        clear_all = True
+        has_previous = len(self.tree.get_children()) > 0 or len(self.scanned_closed) > 0
+        if has_previous:
+            if self._ask_yes_no("confirm_clear_title", "confirm_clear_message", "confirm_clear_yes", "confirm_clear_no") is True:
+                clear_all = True
+            else:
+                clear_all = False
+        
+        rescan_closed = clear_all
+        if clear_all:
+            for item in self.tree.get_children():
+                self.tree.delete(item)
+            self.scanned_closed.clear()
+            self.results = []
         
         self.is_scanning = True
-        self.results = []
-        self.total_scanned = 0
-        self.total_found = 0
+        if clear_all:
+            self.results = []
+        self.total_scanned = len(self.results) if not clear_all else 0
+        self.total_found = len(self.results) if not clear_all else 0
         self.start_time = time.time()
-        
-        for item in self.tree.get_children():
-            self.tree.delete(item)
+        self._last_progress_status_time = 0
+        self._scanned_count = 0
+        if hasattr(self, "time_label") and self.time_label.winfo_exists():
+            self.time_label.config(text=self.num(1) + "s")
+        if hasattr(self, "found_label") and self.found_label.winfo_exists():
+            self.found_label.config(text=self.num(0))
+        if hasattr(self, "speed_label") and self.speed_label.winfo_exists():
+            self.speed_label.config(text="— ms")
+        self.root.after(1000, self._update_elapsed_timer)
+        self.root.after(100, self._update_speed_display)
+        self.root.after(1000, self._update_latency_display)
+        self._current_latency_ms = None
         
         self.scanner.update_queue = self.update_queue
         self._set_progress_percent(0)
         self.root.update_idletasks()
+        self.root.update()
         
         if isinstance(self.start_btn, tk.Button):
             self.start_btn.config(state=tk.DISABLED)
@@ -3461,44 +3682,53 @@ class CDNScannerPro:
                 best_ranges = self.ai.predict_best_ranges(all_ranges, min(500, max(100, int(target) * 3)))
             
             mode = self.get_mode_internal()
+            cpu_count = os.cpu_count() or 4
+            base_workers = max(500, min(1500, cpu_count * 120))
+            mode_key = None
+            for k, v in self._MODE_INTERNAL.items():
+                if v == mode:
+                    mode_key = k
+                    break
+            resource_pct = {"mode_turbo": 0.20, "mode_hyper": 0.40, "mode_ultra": 0.60, "mode_deep": 0.80}.get(mode_key, 0.20)
+            base_workers = max(base_workers, (os.cpu_count() or 4) * 180)
+            self.scanner.max_workers = max(500, int(base_workers * resource_pct))
             if "5s" in mode:
-                max_ips = 30
-                self.scanner.max_workers = 700
+                max_ips = 40
             elif "10s" in mode:
-                max_ips = 50
-                self.scanner.max_workers = 600
+                max_ips = 60
             elif "15s" in mode:
-                max_ips = 70
-                self.scanner.max_workers = 500
+                max_ips = 80
             else:
                 max_ips = 100
-                self.scanner.max_workers = 450
             
             ports = getattr(self, "scan_ports", None) or self.ai.priority_ports
             self.ai.priority_ports = ports
             target_count = None if target == "All" else int(target)
+            only_clean_mode = getattr(self, "filter_only_clean_var", None) and self.filter_only_clean_var.get()
             ping_min = getattr(self, "ping_min", 0)
             ping_max = getattr(self, "ping_max", 9999)
             self.scanner.max_latency_ms = ping_max
             self.scanner.timeout = min(10, max(2, ping_max / 1000.0 * 1.5))
             
             ips_to_scan = []
+            cap = target_count
+            if target_count is not None and only_clean_mode:
+                cap = max(target_count * 25, target_count + 500)
             for cidr in best_ranges:
                 if not self.is_scanning:
                     break
-                if target_count is not None and len(ips_to_scan) >= target_count:
+                if cap is not None and len(ips_to_scan) >= cap:
                     break
                 ips = self._range_to_ips(cidr, max_ips)
-                # فقط وقتی «ردشون کن» زده شده، آی‌پی‌های بستهٔ قبلی را حذف کن؛ آی‌پی دستی (تک‌آی‌پی) همیشه اسکن شود
                 is_explicit_single_ip = "/" not in (cidr or "")
                 if not rescan_closed and self.scanned_closed and not is_explicit_single_ip:
                     ips = [ip for ip in ips if str(ip) not in self.scanned_closed]
                 for ip in ips:
                     ips_to_scan.append(ip)
-                    if target_count is not None and len(ips_to_scan) >= target_count:
+                    if cap is not None and len(ips_to_scan) >= cap:
                         break
             
-            if target_count is not None:
+            if target_count is not None and not only_clean_mode:
                 ips_to_scan = ips_to_scan[:target_count]
             total_to_scan = len(ips_to_scan)
             self.update_queue.put(("status", self.t("status_scan").format(total_to_scan)))
@@ -3508,15 +3738,35 @@ class CDNScannerPro:
                 self.update_queue.put(("done", None))
                 return
             
-            self.update_queue.put(("total", total_to_scan))
-            batch_size = min(100, max(30, total_to_scan // 4))
-            done_so_far = 0
+            ip_to_op = {}
+            op_names_map = {}
+            if self._is_operator_scan_mode():
+                ip_to_op = self._operator_for_ips_bulk([str(ip) for ip in ips_to_scan])
+                cache = self._build_operator_networks_cache()
+                op_names_map = cache.get("op_names", {})
             
+            self.update_queue.put(("total", total_to_scan))
+            self.update_queue.put(("progress", (0, total_to_scan, 0, 0)))
+            self.update_queue.put(("status", self.t("status_scan").format(total_to_scan)))
+            batch_size = min(500, max(150, total_to_scan // 3))
+            done_so_far = 0
+            def on_progress(done, _total, _speed, _elapsed):
+                self._scanned_count = int(done)
+
             for start in range(0, total_to_scan, batch_size):
                 if not self.is_scanning:
                     break
+                if target_count is not None and only_clean_mode and self.total_found >= target_count:
+                    break
                 batch_ips = ips_to_scan[start:start + batch_size]
-                batch_results = self.scanner.batch_scan(batch_ips, ports)
+                batch_results = self.scanner.batch_scan(
+                    batch_ips, ports,
+                    progress_queue=self.update_queue,
+                    progress_total=total_to_scan,
+                    progress_start=start,
+                    progress_start_time=self.start_time,
+                    progress_callback=on_progress,
+                )
                 open_ips = {r['ip'] for r in batch_results}
                 results_by_ip = {r['ip']: r for r in batch_results}
                 for ip in batch_ips:
@@ -3537,8 +3787,9 @@ class CDNScannerPro:
                     ping_val = result.get('ping')
                     if ping_val is not None and (ping_val < ping_min or ping_val > ping_max):
                         continue
-                    if user_operator is not None:
-                        result['operator'] = user_operator
+                    if user_operator is not None or ip_to_op:
+                        op_key = ip_to_op.get(result['ip'])
+                        result['operator'] = op_names_map.get(op_key, op_key) if op_key else (user_operator or "")
                     self.total_found += 1
                     score = self._calc_score(result)
                     result['score'] = score
@@ -3587,9 +3838,22 @@ class CDNScannerPro:
         if 8443 in open_ports:
             score += 4
         return max(0.0, min(100.0, score))
+
+    def _ping_quality_label(self, ping_ms):
+        """بر اساس پینگ: کمتر از ۳۰۰ = مناسب، ۳۰۰–۵۰۰ = متوسط، بیشتر از ۵۰۰ = نامناسب."""
+        if ping_ms is None:
+            return self.t("ping_unsuitable")
+        if ping_ms < 300:
+            return self.t("ping_suitable")
+        if ping_ms <= 500:
+            return self.t("ping_average")
+        return self.t("ping_unsuitable")
     
     def stop_scan(self):
+        if self._ask_yes_no("confirm_stop_title", "confirm_stop_message", "confirm_stop_yes", "confirm_stop_no") is not True:
+            return
         self.is_scanning = False
+        self._set_progress_percent(100)
         if isinstance(self.stop_btn, tk.Button):
             self.stop_btn.config(state=tk.DISABLED)
     
@@ -3674,81 +3938,100 @@ class CDNScannerPro:
     
     def check_queue(self):
         try:
-            while True:
-                msg_type, data = self.update_queue.get_nowait()
-                
-                if msg_type == "status":
-                    self.status_label.config(text=data)
-                elif msg_type == "total":
-                    pass
-                    # نوار پیشرفت بر اساس درصد ۰–۱۰۰ است؛ هدف را عوض نکن
-                elif msg_type == "progress":
-                    done, total, speed, elapsed = data
-                    percent = (float(done) / float(total) * 100.0) if total and total > 0 else 0.0
-                    percent = min(100.0, percent)
-                    self._set_progress_percent(percent)
-                    self.speed_label.config(text=self.num(int(speed)) + " IP/s")
-                    self.found_label.config(text=self.num(self.total_found))
-                    self.time_label.config(text=self.num(f"{elapsed:.1f}") + "s")
-                    self.status_label.config(text=self.t("status_pct").format(self.num(f"{percent:.1f}")))
+            msg_type, data = self.update_queue.get_nowait()
+        except Empty:
+            interval = 5 if getattr(self, "is_scanning", False) else 50
+            self.root.after(interval, self.check_queue)
+            return
+        except Exception:
+            self.root.after(50, self.check_queue)
+            return
+
+        try:
+            if msg_type == "status":
+                self.status_label.config(text=data)
+            elif msg_type == "total":
+                pass
+                # نوار پیشرفت بر اساس درصد ۰–۱۰۰ است؛ هدف را عوض نکن
+            elif msg_type == "progress":
+                done, total, speed, elapsed = data
+                percent = (float(done) / float(total) * 100.0) if total and total > 0 else 0.0
+                percent = min(100.0, percent)
+                self._set_progress_percent(percent)
+                self._scanned_count = int(done)
+                if hasattr(self, "found_label") and self.found_label.winfo_exists():
+                    self.found_label.config(text=self.num(len(self.tree.get_children())))
+                pings = [r.get("ping") for r in getattr(self, "results", []) if r.get("ping") is not None]
+                avg_latency = int(sum(pings) / len(pings)) if pings else 0
+                self._current_latency_ms = avg_latency if pings else getattr(self, "_current_latency_ms", None)
+                status_line = self.num(f"{percent:.1f}") + "% | " + self.num(int(speed)) + " IP/s | Latency: " + (self.num(avg_latency) + " ms" if avg_latency else "—")
+                if hasattr(self, "status_label") and self.status_label.winfo_exists():
+                    self.status_label.config(text=status_line)
+                self.root.update_idletasks()
+            elif msg_type == "ip_status":
+                ip_str, success, latency, open_ports = data
+                try:
+                    self._scanned_count = getattr(self, "_scanned_count", 0) + 1
+                    if hasattr(self, "speed_label") and self.speed_label.winfo_exists():
+                        self.speed_label.config(text=self.num(self._scanned_count))
                     self.root.update_idletasks()
-                elif msg_type == "ip_status":
-                    ip_str, success, latency, open_ports = data
-                    try:
-                        only_clean = getattr(self, "filter_only_clean_var", None) and self.filter_only_clean_var.get()
-                        if only_clean and not (success and latency is not None and open_ports):
-                            pass
-                        elif success and latency is not None and open_ports is not None:
-                            priority_ports = getattr(self, "scan_ports", None) or self.ai.priority_ports
-                            mini = {'ip': ip_str, 'open_ports': open_ports, 'ping': latency}
-                            mini['operator'] = getattr(self, '_last_scan_operator', "") if self._has_operator_display() else ""
-                            score_str = self.num(int(self._calc_score(mini))) + "/" + self.num(100)
-                            if self._has_operator_display():
-                                ports_str = self._format_ports_column(mini)
-                                op_str = self._format_operator_column(mini)
-                            else:
-                                ports_str = " ".join([f"{p}✅" for p in open_ports])
-                                op_str = ""
-                            ping_str = self.num(int(round(latency))) + " ms" if latency < 1000 else self.t("ping_unsuitable")
-                            self.tree.insert("", tk.END, values=(score_str, ports_str, ping_str, ip_str, op_str, "—"))
-                        else:
-                            if not only_clean:
-                                if self._has_operator_display():
-                                    mini_fail = {'ip': ip_str, 'open_ports': [], 'ping': None, 'operator': getattr(self, '_last_scan_operator', '')}
-                                    op_str = self._format_operator_column(mini_fail)
-                                    ports_str = self._format_ports_column(mini_fail)
-                                else:
-                                    op_str = ""
-                                    ports_str = "❌"
-                                self.tree.insert("", tk.END, values=("—", ports_str, "—", ip_str, op_str, "—"))
-                        for idx, item in enumerate(self.tree.get_children(), 1):
-                            vals = list(self.tree.item(item)['values'])
-                            vals[5] = "#" + self.num(idx)
-                            self.tree.item(item, values=vals)
-                        self.root.update_idletasks()
-                    except Exception:
-                        pass
-                elif msg_type == "result":
-                    result = data
-                    ip_val = result['ip']
                     only_clean = getattr(self, "filter_only_clean_var", None) and self.filter_only_clean_var.get()
-                    if self._has_operator_display() and getattr(self, 'current_operator_key', None) is None:
-                        self._rebuild_results_from_matrix()
-                    elif only_clean and not (result.get('open_ports') and result.get('ping')):
+                    if only_clean and not (success and latency is not None and open_ports):
                         pass
-                    else:
-                        found_item = None
-                        for item in self.tree.get_children():
-                            if self.tree.item(item)['values'][3] == ip_val:
-                                found_item = item
-                                break
+                    elif success and latency is not None and open_ports is not None:
+                        priority_ports = getattr(self, "scan_ports", None) or self.ai.priority_ports
+                        mini = {'ip': ip_str, 'open_ports': open_ports, 'ping': latency}
+                        mini['operator'] = getattr(self, '_last_scan_operator', "") if self._has_operator_display() else ""
+                        quality_str = self._ping_quality_label(latency)
                         if self._has_operator_display():
-                            ports_str = self._format_ports_column(result)
-                            op_str = self._format_operator_column(result)
+                            ports_str = self._format_ports_column(mini)
+                            op_str = self._format_operator_column(mini)
                         else:
-                            ports_str = " ".join([f"{p}✅" for p in result.get('open_ports', [])])
+                            ports_str = " ".join([f"{p}✅" for p in open_ports])
                             op_str = ""
-                        score_str = self.num(int(result['score'])) + "/" + self.num(100)
+                        ping_str = self.num(int(round(latency))) + " ms" if latency < 1000 else self.t("ping_unsuitable")
+                        self.tree.insert("", tk.END, values=(quality_str, ports_str, ping_str, ip_str, op_str, "—"))
+                    else:
+                        if not only_clean:
+                            if self._has_operator_display():
+                                mini_fail = {'ip': ip_str, 'open_ports': [], 'ping': None, 'operator': getattr(self, '_last_scan_operator', '')}
+                                op_str = self._format_operator_column(mini_fail)
+                                ports_str = self._format_ports_column(mini_fail)
+                            else:
+                                op_str = ""
+                                ports_str = "❌"
+                            quality_str = self._ping_quality_label(None)
+                            self.tree.insert("", tk.END, values=(quality_str, ports_str, "—", ip_str, op_str, "—"))
+                    for idx, item in enumerate(self.tree.get_children(), 1):
+                        vals = list(self.tree.item(item)['values'])
+                        vals[5] = "#" + self.num(idx)
+                        self.tree.item(item, values=vals)
+                    if hasattr(self, "found_label") and self.found_label.winfo_exists():
+                        self.found_label.config(text=self.num(len(self.tree.get_children())))
+                    self.root.update_idletasks()
+                except Exception:
+                    pass
+            elif msg_type == "result":
+                result = data
+                ip_val = result['ip']
+                only_clean = getattr(self, "filter_only_clean_var", None) and self.filter_only_clean_var.get()
+                if self._has_operator_display() and getattr(self, 'current_operator_key', None) is None:
+                    self._rebuild_results_from_matrix()
+                elif only_clean and not (result.get('open_ports') and result.get('ping')):
+                    pass
+                else:
+                    found_item = None
+                    for item in self.tree.get_children():
+                        if self.tree.item(item)['values'][3] == ip_val:
+                            found_item = item
+                            break
+                    if self._has_operator_display():
+                        ports_str = self._format_ports_column(result)
+                        op_str = self._format_operator_column(result)
+                    else:
+                        ports_str = " ".join([f"{p}✅" for p in result.get('open_ports', [])])
+                        op_str = ""
+                        quality_str = self._ping_quality_label(result.get('ping'))
                         if not result.get('ping'):
                             ping_str = "N/A"
                         elif result['ping'] >= 1000:
@@ -3756,47 +4039,55 @@ class CDNScannerPro:
                         else:
                             ping_str = self.num(int(round(result['ping']))) + " ms"
                         if found_item:
-                            self.tree.item(found_item, values=(score_str, ports_str, ping_str, ip_val, op_str, "—"))
+                            self.tree.item(found_item, values=(quality_str, ports_str, ping_str, ip_val, op_str, "—"))
                         else:
-                            self.tree.insert("", tk.END, values=(score_str, ports_str, ping_str, ip_val, op_str, "—"))
-                        target = self.get_target_internal()
-                        items = self.tree.get_children()
-                        if target != "All" and len(items) > int(target):
-                            self.tree.delete(items[-1])
-                        for idx, item in enumerate(self.tree.get_children(), 1):
-                            vals = list(self.tree.item(item)['values'])
-                            vals[5] = "#" + self.num(idx)
-                            self.tree.item(item, values=vals)
-                elif msg_type == "error":
-                    messagebox.showerror(self.t("error_title"), data)
-                elif msg_type == "done":
-                    self.is_scanning = False
-                    self._set_progress_percent(100)
-                    if self._has_operator_display() and getattr(self, 'current_operator_key', None) is None:
-                        self._rebuild_results_from_matrix()
-                    try:
-                        self.root.update_idletasks()
-                        self.root.update()
-                    except Exception:
-                        pass
-                    self._save_last_scan()
-                    self.root.after(50, lambda: self._set_progress_percent(100))
-                    if isinstance(self.start_btn, tk.Button):
-                        self.start_btn.config(state=tk.NORMAL)
-                    if isinstance(self.stop_btn, tk.Button):
-                        self.stop_btn.config(state=tk.DISABLED)
-                    if isinstance(self.export_btn, tk.Button):
-                        self.export_btn.config(state=tk.NORMAL)
-                    if isinstance(self.analyze_btn, tk.Button):
-                        self.analyze_btn.config(state=tk.NORMAL)
-                    elapsed = time.time() - self.start_time
-                    self.status_label.config(text=self.t("scan_done").format(self.num(self.total_found), self.num(f"{elapsed:.1f}")))
-                    if self.total_found > 0:
-                        self.root.after(1000, self.ai_analyze)
+                            self.tree.insert("", tk.END, values=(quality_str, ports_str, ping_str, ip_val, op_str, "—"))
+                    target = self.get_target_internal()
+                    items = self.tree.get_children()
+                    if target != "All" and len(items) > int(target):
+                        self.tree.delete(items[-1])
+                    for idx, item in enumerate(self.tree.get_children(), 1):
+                        vals = list(self.tree.item(item)['values'])
+                        vals[5] = "#" + self.num(idx)
+                        self.tree.item(item, values=vals)
+                    if hasattr(self, "found_label") and self.found_label.winfo_exists():
+                        self.found_label.config(text=self.num(len(self.tree.get_children())))
+            elif msg_type == "error":
+                messagebox.showerror(self.t("error_title"), data)
+            elif msg_type == "done":
+                self.is_scanning = False
+                self._set_progress_percent(100)
+                if self._has_operator_display() and getattr(self, 'current_operator_key', None) is None:
+                    self._rebuild_results_from_matrix()
+                try:
+                    if hasattr(self, "time_label") and self.time_label.winfo_exists():
+                        elapsed = max(1, int(time.time() - self.start_time))
+                        self.time_label.config(text=self.num(elapsed) + "s")
+                    if hasattr(self, "found_label") and self.found_label.winfo_exists():
+                        self.found_label.config(text=self.num(len(self.tree.get_children())))
+                    self.root.update_idletasks()
+                    self.root.update()
+                except Exception:
+                    pass
+                self._save_last_scan()
+                self.root.after(50, lambda: self._set_progress_percent(100))
+                if isinstance(self.start_btn, tk.Button):
+                    self.start_btn.config(state=tk.NORMAL)
+                if isinstance(self.stop_btn, tk.Button):
+                    self.stop_btn.config(state=tk.DISABLED)
+                if isinstance(self.export_btn, tk.Button):
+                    self.export_btn.config(state=tk.NORMAL)
+                if isinstance(self.analyze_btn, tk.Button):
+                    self.analyze_btn.config(state=tk.NORMAL)
+                elapsed = time.time() - self.start_time
+                self.status_label.config(text=self.t("scan_done").format(self.num(self.total_found), self.num(f"{elapsed:.1f}")))
+                if self.total_found > 0:
+                    self.root.after(1000, self.ai_analyze)
         except Exception:
             pass
 
-        self.root.after(50, self.check_queue)
+        interval = 5 if getattr(self, "is_scanning", False) else 50
+        self.root.after(interval, self.check_queue)
 
 
 def _show_splash_then_run():
