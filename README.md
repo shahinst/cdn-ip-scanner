@@ -175,8 +175,6 @@
 
 ## 👤 Author | نویسنده
 
-**شاهین سالک توتونچی (Shahin Salek Tootoonchi)**
-
 - GitHub: [@shahinst](https://github.com/shahinst)
 - Website: [digicloud.tr](https://digicloud.tr)
 - YouTube: [@shaahinst](https://www.youtube.com/@shaahinst)
