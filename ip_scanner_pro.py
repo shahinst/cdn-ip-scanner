@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 CDN IP Scanner V1.7
-Author: شاهین سالک توتونچی (shahin salek tootoonchi)
+Author: shahin (shahin salek tootoonchi)
 GitHub: github.com/shahinst
 Website: digicloud.tr
 YouTube: https://www.youtube.com/@shaahinst
@@ -91,7 +91,7 @@ except ImportError:
     EXCEL_AVAILABLE = False
 
 # ===== Author & Links =====
-AUTHOR_NAME = "شاهین سالک توتونچی"
+AUTHOR_NAME = "shahin"
 GITHUB_URL = "https://github.com/shahinst"
 GITHUB_REPO_URL = "https://github.com/shahinst/cdn-ip-scanner"  # پروژه گیت‌هاب
 GITHUB_RAW_VERSION_URL = "https://raw.githubusercontent.com/shahinst/cdn-ip-scanner/main/version"
@@ -387,7 +387,7 @@ TRANSLATIONS = {
         "status_analyze": "تحلیل {} رنج... 🤖",
         "status_scan": "اسکن {} رنج... ⚡",
         "status_pct": "اسکن... {}% ⚡",
-        "made_by_simple": "برنامه نویسی و طراحی توسط : شاهین سالک توتونچی",
+        "made_by_simple": "برنامه نویسی و طراحی توسط : shahin",
         "settings_main": "تنظیمات اصلی",
         "settings_theme": "تغییر رنگ / تم",
         "settings_ip_check": "تغییر بررسی آی پی ها",
