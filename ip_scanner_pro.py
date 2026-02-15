@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 CDN IP Scanner V1.7
-Author: shahin (shahin salek tootoonchi)
+Author: shahin (shahin)
 GitHub: github.com/shahinst
 Website: digicloud.tr
 YouTube: https://www.youtube.com/@shaahinst
@@ -129,7 +129,7 @@ TRANSLATIONS = {
         "ip_hdr": "IP 📍",
         "rank_hdr": "Rank 🏆",
         "made_by": "Made with ❤️ by {}",
-        "author_display": "shahin salek tootoonchi",
+        "author_display": "shahin",
         "website_link_text": "Buy server",
         "donate_text": "💎 Donate (USDT): 0xde200d...c269",
         "github_text": "GitHub ⭐",
@@ -215,7 +215,7 @@ TRANSLATIONS = {
         "status_analyze": "Analyzing {} ranges... 🤖",
         "status_scan": "Scanning {} ranges... ⚡",
         "status_pct": "Scan... {}% ⚡",
-        "made_by_simple": "Programming and design by: shahin salek tootoonchi",
+        "made_by_simple": "Programming and design by: shahin",
         "settings_main": "Main settings",
         "settings_theme": "Theme / Color",
         "settings_ip_check": "IP check method",
@@ -473,7 +473,7 @@ TRANSLATIONS = {
         "ip_hdr": "IP 📍",
         "rank_hdr": "排名 🏆",
         "made_by": "由 {} 用 ❤️ 制作",
-        "author_display": "shahin salek tootoonchi",
+        "author_display": "shahin",
         "website_link_text": "购买服务器",
         "donate_text": "💎 Donate (USDT): 0xde200d...c269",
         "github_text": "GitHub ⭐",
@@ -572,7 +572,7 @@ TRANSLATIONS = {
         "status_analyze": "分析 {} 个范围... 🤖",
         "status_scan": "扫描 {} 个范围... ⚡",
         "status_pct": "扫描... {}% ⚡",
-        "made_by_simple": "编程与设计：shahin salek tootoonchi",
+        "made_by_simple": "编程与设计：shahin",
         "settings_main": "主要设置",
         "settings_theme": "主题 / 颜色",
         "settings_ip_check": "IP 检查方式",
@@ -645,7 +645,7 @@ TRANSLATIONS = {
         "ip_hdr": "IP 📍",
         "rank_hdr": "Ранг 🏆",
         "made_by": "Сделано с ❤️ {}",
-        "author_display": "shahin salek tootoonchi",
+        "author_display": "shahin",
         "website_link_text": "Купить сервер",
         "donate_text": "💎 Donate (USDT): 0xde200d...c269",
         "github_text": "GitHub ⭐",
@@ -731,7 +731,7 @@ TRANSLATIONS = {
         "status_analyze": "Анализ {} диапазонов... 🤖",
         "status_scan": "Сканирование {} диапазонов... ⚡",
         "status_pct": "Сканирование... {}% ⚡",
-        "made_by_simple": "Программирование и дизайн: shahin salek tootoonchi",
+        "made_by_simple": "Программирование и дизайн: shahin",
         "settings_main": "Основные настройки",
         "settings_theme": "Тема / Цвет",
         "settings_ip_check": "Способ проверки IP",
@@ -2095,7 +2095,7 @@ class CDNScannerPro:
         
         footer_frame = tk.Frame(self.loading_frame, bg='#1e1e2e')
         footer_frame.pack(side=tk.BOTTOM, pady=25)
-        tk.Label(footer_frame, text="Programming and design by: shahin salek tootoonchi", font=("Segoe UI", 10), bg='#1e1e2e', fg='#a6adc8').pack()
+        tk.Label(footer_frame, text="Programming and design by: shahin", font=("Segoe UI", 10), bg='#1e1e2e', fg='#a6adc8').pack()
         link_f = tk.Frame(footer_frame, bg='#1e1e2e')
         link_f.pack(pady=4)
         for lbl, url in [("GitHub", GITHUB_REPO_URL), ("YouTube", YOUTUBE_URL), ("digicloud.tr", WEBSITE_URL)]:
