@@ -47,6 +47,7 @@ SERVER_IP=""
 APP_PORT=8080
 PANEL_USER=""
 PANEL_PASS=""
+SERVER_IN_IRAN=false
 
 # ======================== FUNCTIONS ========================
 
@@ -136,6 +137,33 @@ detect_os() {
     log "OS: ${OS_NAME} ${OS_VERSION} (${OS_FAMILY}/${PKG_MGR})"
 }
 
+# ───────── Iran: Ubuntu mirror + DNS ─────────
+setup_iran_mirror_and_dns() {
+    if [ "$SERVER_IN_IRAN" != true ]; then
+        return 0
+    fi
+    if [ "$PKG_MGR" != "apt" ]; then
+        return 0
+    fi
+
+    # Ubuntu 24.04+ uses ubuntu.sources
+    if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+        sed -i 's|http://de.archive.ubuntu.com/ubuntu/|http://ir.archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
+        sed -i 's|http://archive.ubuntu.com/ubuntu/|http://ir.archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
+    fi
+
+    # Classic sources.list
+    if [ -f /etc/apt/sources.list ]; then
+        sed -i 's|http://de.archive.ubuntu.com/ubuntu/|http://ir.archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list 2>/dev/null || true
+        sed -i 's|http://archive.ubuntu.com/ubuntu/|http://ir.archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list 2>/dev/null || true
+    fi
+
+    # Iranian DNS (Shecan / 403)
+    echo -e "nameserver 217.218.127.127\nnameserver 217.218.155.155" > /etc/resolv.conf 2>/dev/null || true
+
+    echo -e "  ${GREEN}Server optimized for download on Iran network. ✔${NC}"
+}
+
 # ───────── Root check ─────────
 check_root() {
     if [ "$(id -u)" -ne 0 ]; then
@@ -204,6 +232,20 @@ get_user_input() {
             ;;
     esac
 
+    # Iran: ask user if server is in Iran (for mirror + DNS)
+    echo ""
+    read -rp "$(echo -e "${BLUE}Is this server in Iran? Use Iran mirror + DNS for faster install [y/N]: ${NC}")" IRAN_CHOICE
+    case "$IRAN_CHOICE" in
+        [Yy]*)
+            SERVER_IN_IRAN=true
+            log "User selected: Iran — will apply ir.archive.ubuntu.com and Iranian DNS."
+            ;;
+        *)
+            SERVER_IN_IRAN=false
+            log "User selected: Not Iran — using default mirrors/DNS."
+            ;;
+    esac
+
     # Email for Let's Encrypt (required for IP SSL; must be valid domain e.g. you@gmail.com)
     ACME_EMAIL=""
     if [ "$USE_DOMAIN" != true ]; then
@@ -231,6 +273,7 @@ get_user_input() {
     echo -e "  Password  : ${GREEN}****${NC}"
     echo -e "  Backend   : ${GREEN}127.0.0.1:${APP_PORT}${NC} (internal, Nginx proxies to this)"
     echo -e "  Mode      : ${GREEN}$([ "$USE_DOMAIN" = true ] && echo "Domain" || echo "IP address")${NC}"
+    echo -e "  Iran      : ${GREEN}$([ "$SERVER_IN_IRAN" = true ] && echo "Yes (ir.archive + Iranian DNS)" || echo "No")${NC}"
     [ -n "$ACME_EMAIL" ] && echo -e "  ACME email : ${GREEN}${ACME_EMAIL}${NC}"
     echo ""
     read -rp "$(echo -e "${YELLOW}Continue? [Y/n]: ${NC}")" CONFIRM
@@ -270,6 +313,9 @@ install_packages() {
     echo -e "${BOLD}  [Step 1/12] Installing System Packages${NC}"
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
+
+    # Iran: switch to ir.archive and Iranian DNS before apt update
+    setup_iran_mirror_and_dns || true
 
     # Update package index
     echo -e "  ${BLUE}Updating package index...${NC}"
