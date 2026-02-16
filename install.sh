@@ -840,64 +840,360 @@ set_permissions() {
 create_uninstaller() {
     log "Creating uninstaller..."
 
-    cat > "/tmp/${APP_NAME}-uninstall.sh" << 'UNINSTEOF'
+    # The uninstaller is written to /usr/local/sbin/ so it survives app dir deletion
+    # and also a copy inside $APP_DIR that self-copies to /tmp before running.
+    UNINSTALL_PATH="/usr/local/sbin/${APP_NAME}-uninstall.sh"
+
+    cat > "$UNINSTALL_PATH" << 'UNINSTEOF'
 #!/bin/bash
+# ═══════════════════════════════════════════════════════════════
+# CDN IP Scanner V2.0 — Complete Uninstaller
+# ═══════════════════════════════════════════════════════════════
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
 NC='\033[0m'
 
 APP_NAME="cdn-ip-scanner"
 APP_DIR="/opt/${APP_NAME}"
 SERVICE_NAME="${APP_NAME}"
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+NGINX_SITES_AVAIL="/etc/nginx/sites-available/${APP_NAME}"
+NGINX_SITES_ENABLED="/etc/nginx/sites-enabled/${APP_NAME}"
+NGINX_CONF_D="/etc/nginx/conf.d/${APP_NAME}.conf"
+SSL_DIR="/etc/nginx/ssl_${APP_NAME}"
+HTPASSWD_FILE="/etc/nginx/.htpasswd_${APP_NAME}"
+LOG_FILE="/var/log/${APP_NAME}-install.log"
+REMOVED=0
+SKIPPED=0
+ERRORS=0
+
+ok()   { echo -e "    ${GREEN}✔ $1${NC}"; REMOVED=$((REMOVED + 1)); }
+skip() { echo -e "    ${YELLOW}– $1${NC}"; SKIPPED=$((SKIPPED + 1)); }
+fail() { echo -e "    ${RED}✘ $1${NC}"; ERRORS=$((ERRORS + 1)); }
+
+# ─── Root check ───
+if [ "$(id -u)" -ne 0 ]; then
+    echo -e "${RED}[!] Run as root: sudo bash $0${NC}"
+    exit 1
+fi
 
 echo ""
-echo -e "${YELLOW}=== CDN IP Scanner - Uninstaller ===${NC}"
+echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║                                                          ║${NC}"
+echo -e "${CYAN}║       CDN IP Scanner V2.0 — Uninstaller                  ║${NC}"
+echo -e "${CYAN}║                                                          ║${NC}"
+echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
-read -rp "Uninstall completely? [y/N]: " CONFIRM
+
+echo -e "${BOLD}The following will be removed:${NC}"
+echo ""
+[ -f "$SERVICE_FILE" ]       && echo -e "  • Systemd service : ${SERVICE_FILE}" || echo -e "  ${YELLOW}• Systemd service : (not found)${NC}"
+[ -f "$NGINX_SITES_AVAIL" ]  && echo -e "  • Nginx config    : ${NGINX_SITES_AVAIL}" || true
+[ -f "$NGINX_CONF_D" ]       && echo -e "  • Nginx config    : ${NGINX_CONF_D}" || true
+[ ! -f "$NGINX_SITES_AVAIL" ] && [ ! -f "$NGINX_CONF_D" ] && echo -e "  ${YELLOW}• Nginx config    : (not found)${NC}" || true
+[ -d "$SSL_DIR" ]            && echo -e "  • SSL certificates: ${SSL_DIR}" || echo -e "  ${YELLOW}• SSL certificates: (not found)${NC}"
+[ -f "$HTPASSWD_FILE" ]      && echo -e "  • Auth file       : ${HTPASSWD_FILE}" || echo -e "  ${YELLOW}• Auth file       : (not found)${NC}"
+[ -d "$APP_DIR" ]            && echo -e "  • App directory   : ${APP_DIR} ($(du -sh "$APP_DIR" 2>/dev/null | awk '{print $1}'))" || echo -e "  ${YELLOW}• App directory   : (not found)${NC}"
+id "cdnscanner" >/dev/null 2>&1 && echo -e "  • System user     : cdnscanner" || echo -e "  ${YELLOW}• System user     : (not found)${NC}"
+[ -f "$LOG_FILE" ]           && echo -e "  • Install log     : ${LOG_FILE}" || true
+echo ""
+
+read -rp "$(echo -e "${RED}${BOLD}Are you sure you want to uninstall? [y/N]: ${NC}")" CONFIRM
 case "$CONFIRM" in
     [Yy]*) ;;
-    *) echo "Cancelled."; exit 0 ;;
+    *) echo -e "\n${GREEN}Cancelled. Nothing was removed.${NC}"; exit 0 ;;
 esac
 
-echo -e "${GREEN}[1/6]${NC} Stopping service..."
-systemctl stop "$SERVICE_NAME" 2>/dev/null || true
-systemctl disable "$SERVICE_NAME" 2>/dev/null || true
-rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
-systemctl daemon-reload 2>/dev/null || true
-
-echo -e "${GREEN}[2/6]${NC} Removing Nginx config..."
-rm -f "/etc/nginx/sites-available/${APP_NAME}"
-rm -f "/etc/nginx/sites-enabled/${APP_NAME}"
-rm -f "/etc/nginx/conf.d/${APP_NAME}.conf"
-systemctl reload nginx 2>/dev/null || true
-
-echo -e "${GREEN}[3/6]${NC} Removing SSL..."
-rm -rf "/etc/nginx/ssl_${APP_NAME}"
-
-echo -e "${GREEN}[4/6]${NC} Removing auth..."
-rm -f "/etc/nginx/.htpasswd_${APP_NAME}"
-
-echo -e "${GREEN}[5/6]${NC} Removing app directory..."
-rm -rf "$APP_DIR"
-
-echo -e "${GREEN}[6/6]${NC} Removing user..."
-userdel "cdnscanner" 2>/dev/null || true
-
 echo ""
-echo -e "${GREEN}Done! CDN IP Scanner removed.${NC}"
-rm -f "/tmp/${APP_NAME}-uninstall.sh"
+echo -e "${BOLD}Starting uninstall...${NC}"
+echo ""
+
+# ═══════════════════════════════════════════
+# Step 1: Stop and disable systemd service
+# ═══════════════════════════════════════════
+echo -e "${CYAN}[1/8]${NC} ${BOLD}Stopping systemd service...${NC}"
+
+if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+    systemctl stop "$SERVICE_NAME"
+    if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+        fail "Could not stop service ${SERVICE_NAME}"
+    else
+        ok "Service stopped"
+    fi
+else
+    skip "Service was not running"
+fi
+
+if systemctl is-enabled --quiet "$SERVICE_NAME" 2>/dev/null; then
+    systemctl disable "$SERVICE_NAME" 2>/dev/null
+    ok "Service disabled from auto-start"
+else
+    skip "Service was not enabled"
+fi
+
+if [ -f "$SERVICE_FILE" ]; then
+    rm -f "$SERVICE_FILE"
+    ok "Removed ${SERVICE_FILE}"
+else
+    skip "Service file not found"
+fi
+
+systemctl daemon-reload 2>/dev/null
+ok "Systemd daemon reloaded"
+
+# ═══════════════════════════════════════════
+# Step 2: Kill any remaining processes
+# ═══════════════════════════════════════════
+echo ""
+echo -e "${CYAN}[2/8]${NC} ${BOLD}Killing remaining processes...${NC}"
+
+PIDS=$(pgrep -f "${APP_DIR}/run.py" 2>/dev/null) || true
+if [ -n "$PIDS" ]; then
+    echo "$PIDS" | xargs kill -9 2>/dev/null || true
+    ok "Killed leftover processes: ${PIDS}"
+else
+    skip "No leftover processes found"
+fi
+
+PIDS2=$(pgrep -f "${APP_DIR}/venv" 2>/dev/null) || true
+if [ -n "$PIDS2" ]; then
+    echo "$PIDS2" | xargs kill -9 2>/dev/null || true
+    ok "Killed venv processes: ${PIDS2}"
+else
+    skip "No venv processes found"
+fi
+
+# ═══════════════════════════════════════════
+# Step 3: Remove Nginx configuration
+# ═══════════════════════════════════════════
+echo ""
+echo -e "${CYAN}[3/8]${NC} ${BOLD}Removing Nginx configuration...${NC}"
+
+if [ -f "$NGINX_SITES_AVAIL" ]; then
+    rm -f "$NGINX_SITES_AVAIL"
+    ok "Removed ${NGINX_SITES_AVAIL}"
+else
+    skip "sites-available config not found"
+fi
+
+if [ -L "$NGINX_SITES_ENABLED" ] || [ -f "$NGINX_SITES_ENABLED" ]; then
+    rm -f "$NGINX_SITES_ENABLED"
+    ok "Removed ${NGINX_SITES_ENABLED}"
+else
+    skip "sites-enabled symlink not found"
+fi
+
+if [ -f "$NGINX_CONF_D" ]; then
+    rm -f "$NGINX_CONF_D"
+    ok "Removed ${NGINX_CONF_D}"
+else
+    skip "conf.d config not found"
+fi
+
+# Remove backup files too
+rm -f "${NGINX_SITES_AVAIL}.bak" "${NGINX_CONF_D}.bak" 2>/dev/null
+
+if command -v nginx >/dev/null 2>&1; then
+    if nginx -t 2>/dev/null; then
+        systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
+        ok "Nginx reloaded successfully"
+    else
+        warn "Nginx config test failed after removal — check manually"
+    fi
+else
+    skip "Nginx not installed"
+fi
+
+# ═══════════════════════════════════════════
+# Step 4: Remove SSL certificates
+# ═══════════════════════════════════════════
+echo ""
+echo -e "${CYAN}[4/8]${NC} ${BOLD}Removing SSL certificates...${NC}"
+
+if [ -d "$SSL_DIR" ]; then
+    CERT_COUNT=$(find "$SSL_DIR" -type f 2>/dev/null | wc -l)
+    rm -rf "$SSL_DIR"
+    ok "Removed ${SSL_DIR} (${CERT_COUNT} files)"
+else
+    skip "SSL directory not found"
+fi
+
+# Check for Let's Encrypt certs too
+LE_DIR="/etc/letsencrypt/live/${APP_NAME}"
+LE_RENEWAL="/etc/letsencrypt/renewal/${APP_NAME}.conf"
+if [ -d "$LE_DIR" ] || [ -f "$LE_RENEWAL" ]; then
+    echo -e "    ${YELLOW}Found Let's Encrypt certificate.${NC}"
+    read -rp "    Remove Let's Encrypt cert too? [y/N]: " LE_CONFIRM
+    case "$LE_CONFIRM" in
+        [Yy]*)
+            certbot delete --cert-name "$APP_NAME" --non-interactive 2>/dev/null || true
+            rm -rf "$LE_DIR" "$LE_RENEWAL" 2>/dev/null || true
+            ok "Let's Encrypt certificate removed"
+            ;;
+        *)
+            skip "Let's Encrypt certificate kept"
+            ;;
+    esac
+else
+    skip "No Let's Encrypt certificate found"
+fi
+
+# ═══════════════════════════════════════════
+# Step 5: Remove Basic Auth file
+# ═══════════════════════════════════════════
+echo ""
+echo -e "${CYAN}[5/8]${NC} ${BOLD}Removing authentication...${NC}"
+
+if [ -f "$HTPASSWD_FILE" ]; then
+    rm -f "$HTPASSWD_FILE"
+    ok "Removed ${HTPASSWD_FILE}"
+else
+    skip "Auth file not found"
+fi
+
+# ═══════════════════════════════════════════
+# Step 6: Remove application directory
+# ═══════════════════════════════════════════
+echo ""
+echo -e "${CYAN}[6/8]${NC} ${BOLD}Removing application files...${NC}"
+
+if [ -d "$APP_DIR" ]; then
+    APP_SIZE=$(du -sh "$APP_DIR" 2>/dev/null | awk '{print $1}')
+    FILE_COUNT=$(find "$APP_DIR" -type f 2>/dev/null | wc -l)
+
+    # Check for database with user data
+    DB_FILE="${APP_DIR}/data/scanner.db"
+    if [ -f "$DB_FILE" ]; then
+        DB_SIZE=$(du -sh "$DB_FILE" 2>/dev/null | awk '{print $1}')
+        echo -e "    ${YELLOW}Database found: ${DB_FILE} (${DB_SIZE})${NC}"
+        read -rp "    Keep a backup of the database? [Y/n]: " DB_CONFIRM
+        case "$DB_CONFIRM" in
+            [Nn]*)
+                skip "Database will be deleted with app"
+                ;;
+            *)
+                BACKUP_PATH="/root/${APP_NAME}-db-backup-$(date +%Y%m%d-%H%M%S).db"
+                cp "$DB_FILE" "$BACKUP_PATH" 2>/dev/null
+                ok "Database backed up to ${BACKUP_PATH}"
+                ;;
+        esac
+    fi
+
+    rm -rf "$APP_DIR"
+    if [ ! -d "$APP_DIR" ]; then
+        ok "Removed ${APP_DIR} (${FILE_COUNT} files, ${APP_SIZE})"
+    else
+        fail "Could not fully remove ${APP_DIR}"
+    fi
+else
+    skip "App directory not found"
+fi
+
+# ═══════════════════════════════════════════
+# Step 7: Remove system user
+# ═══════════════════════════════════════════
+echo ""
+echo -e "${CYAN}[7/8]${NC} ${BOLD}Removing system user...${NC}"
+
+if id "cdnscanner" >/dev/null 2>&1; then
+    userdel "cdnscanner" 2>/dev/null
+    if id "cdnscanner" >/dev/null 2>&1; then
+        fail "Could not remove user cdnscanner"
+    else
+        ok "User cdnscanner removed"
+    fi
+else
+    skip "User cdnscanner does not exist"
+fi
+
+# ═══════════════════════════════════════════
+# Step 8: Clean up logs, temp files, cron
+# ═══════════════════════════════════════════
+echo ""
+echo -e "${CYAN}[8/8]${NC} ${BOLD}Cleaning up...${NC}"
+
+if [ -f "$LOG_FILE" ]; then
+    rm -f "$LOG_FILE"
+    ok "Removed install log: ${LOG_FILE}"
+else
+    skip "Install log not found"
+fi
+
+rm -f "/tmp/${APP_NAME}-uninstall.sh" 2>/dev/null || true
+
+# Remove certbot renewal cron if exists
+if crontab -l 2>/dev/null | grep -q "certbot renew"; then
+    crontab -l 2>/dev/null | grep -v "certbot renew" | crontab - 2>/dev/null || true
+    ok "Removed certbot renewal cron job"
+else
+    skip "No certbot cron job found"
+fi
+
+# Remove firewall rules
+if command -v ufw >/dev/null 2>&1; then
+    echo -e "    ${YELLOW}Note: Firewall rules for ports 80/443 were NOT removed.${NC}"
+    echo -e "    ${YELLOW}To remove: ufw delete allow 80/tcp && ufw delete allow 443/tcp${NC}"
+elif command -v firewall-cmd >/dev/null 2>&1; then
+    echo -e "    ${YELLOW}Note: Firewall rules were NOT removed.${NC}"
+    echo -e "    ${YELLOW}To remove: firewall-cmd --permanent --remove-service=http --remove-service=https && firewall-cmd --reload${NC}"
+fi
+
+# ═══════════════════════════════════════════
+# Summary
+# ═══════════════════════════════════════════
+echo ""
+echo -e "${CYAN}══════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "  ${GREEN}${BOLD}Uninstall complete!${NC}"
+echo ""
+echo -e "  ${GREEN}Removed : ${REMOVED} items${NC}"
+[ $SKIPPED -gt 0 ] && echo -e "  ${YELLOW}Skipped : ${SKIPPED} items (not found or kept)${NC}"
+[ $ERRORS -gt 0 ]  && echo -e "  ${RED}Errors  : ${ERRORS} items (check manually)${NC}"
+echo ""
+echo -e "${CYAN}══════════════════════════════════════════════════════════${NC}"
+echo ""
+
+# Self-cleanup
+SELF_PATH="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+rm -f "$SELF_PATH" 2>/dev/null || true
+rm -f "/usr/local/sbin/${APP_NAME}-uninstall.sh" 2>/dev/null || true
 UNINSTEOF
 
-    chmod +x "/tmp/${APP_NAME}-uninstall.sh"
+    chmod +x "$UNINSTALL_PATH"
 
-    cat > "$APP_DIR/uninstall.sh" << WRAPEOF
+    # Also create a wrapper inside $APP_DIR that copies itself to /tmp then runs
+    cat > "$APP_DIR/uninstall.sh" << 'WRAPEOF'
 #!/bin/bash
-exec bash "/tmp/${APP_NAME}-uninstall.sh" 2>/dev/null || echo "Run: bash /tmp/${APP_NAME}-uninstall.sh"
+APP_NAME="cdn-ip-scanner"
+SRC="/usr/local/sbin/${APP_NAME}-uninstall.sh"
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo -e "\033[0;31m[!] Run as root: sudo bash $0\033[0m"
+    exit 1
+fi
+
+if [ -f "$SRC" ]; then
+    exec bash "$SRC"
+else
+    echo -e "\033[0;31m[!] Uninstall script not found at ${SRC}\033[0m"
+    echo "    Try re-running the installer first, or manually remove:"
+    echo "      systemctl stop ${APP_NAME} && systemctl disable ${APP_NAME}"
+    echo "      rm -f /etc/systemd/system/${APP_NAME}.service"
+    echo "      rm -f /etc/nginx/sites-available/${APP_NAME} /etc/nginx/sites-enabled/${APP_NAME} /etc/nginx/conf.d/${APP_NAME}.conf"
+    echo "      rm -rf /etc/nginx/ssl_${APP_NAME}"
+    echo "      rm -f /etc/nginx/.htpasswd_${APP_NAME}"
+    echo "      rm -rf /opt/${APP_NAME}"
+    echo "      systemctl daemon-reload && systemctl reload nginx"
+    exit 1
+fi
 WRAPEOF
     chmod +x "$APP_DIR/uninstall.sh"
 
-    log "Uninstaller ready"
+    log "Uninstaller ready: ${UNINSTALL_PATH}"
 }
 
 # ───────── Summary ─────────
