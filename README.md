@@ -92,9 +92,8 @@ You can download pre-built versions for all platforms from the **Releases** page
 
 | Platform | File | Description |
 |----------|------|-------------|
-| **Windows** | `CDN-IP-Scanner-Windows.zip` | Standalone .exe — just extract and run, no Python needed |
-| **Linux** | `CDN-IP-Scanner-Linux.tar.gz` | Full source + smart installer script |
-| **macOS** | `CDN-IP-Scanner-macOS.zip` | Build kit — run `build.sh` on Mac to create .app |
+| **Windows** | `CDN-IP-Scanner.V2.0.Windows.zip` | Standalone .exe — just extract and run, no Python needed |
+| **macOS** | `CDN-IP-Scanner.V2.0.Mac.zip` | Build kit — run `build.sh` on Mac to create .app |
 | **Source** | `Source code (zip/tar.gz)` | Original source code for developers |
 
 ---
@@ -231,9 +230,8 @@ Watch the full installation and usage tutorial on YouTube:
 
 | پلتفرم | فایل | توضیحات |
 |--------|------|---------|
-| **ویندوز** | `CDN-IP-Scanner-Windows.zip` | فایل exe مستقل — فقط استخراج و اجرا کنید، نیاز به پایتون نیست |
-| **لینوکس** | `CDN-IP-Scanner-Linux.tar.gz` | سورس کامل + اسکریپت نصب هوشمند |
-| **مک** | `CDN-IP-Scanner-macOS.zip` | کیت ساخت — فایل build.sh را روی مک اجرا کنید |
+| **ویندوز** | `CDN-IP-Scanner.V2.0.Windows.zip` | فایل exe مستقل — فقط استخراج و اجرا کنید، نیاز به پایتون نیست |
+| **مک** | `CDN-IP-Scanner.V2.0.Mac.zip` | کیت ساخت — فایل build.sh را روی مک اجرا کنید |
 | **سورس** | `Source code (zip/tar.gz)` | کد منبع اصلی برای توسعه‌دهندگان |
 
 </div>
