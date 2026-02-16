@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="app" class="scanner-app" data-lang="{{ lang }}" dir="{% if lang == 'fa' %}rtl{% else %}ltr{% endif %}">
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" class="header-logo">
+            <div>
+                <h1 class="header-title" data-t="app_title">CDN IP Scanner V 2.0</h1>
+                <p class="header-subtitle" data-t="app_subtitle">High accuracy &bull; Ultra fast &bull; AI powered</p>
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="btn btn-sm btn-update-header" id="btnCheckUpdate" data-t="update_btn">🔄 Update</button>
+            <a href="/scanner/fa" class="btn btn-sm lang-switch">🇮🇷</a>
+            <a href="/scanner/en" class="btn btn-sm lang-switch">🇬🇧</a>
+            <a href="/scanner/zh" class="btn btn-sm lang-switch">🇨🇳</a>
+            <a href="/scanner/ru" class="btn btn-sm lang-switch">🇷🇺</a>
+            <button class="btn btn-sm" id="btnTheme" title="Toggle theme">☀️</button>
+        </div>
+    </header>
+
+    <!-- Stats Cards -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <span class="stat-icon">🎯</span>
+            <span class="stat-label" data-t="target">Target</span>
+            <span class="stat-value" id="statTarget">100</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon">⚡</span>
+            <span class="stat-label" data-t="latency">Latency</span>
+            <span class="stat-value" id="statLatency">— ms</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon">✅</span>
+            <span class="stat-label" data-t="found">Found</span>
+            <span class="stat-value" id="statFound">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon">⏱️</span>
+            <span class="stat-label" data-t="time">Time</span>
+            <span class="stat-value" id="statTime">0s</span>
+        </div>
+    </div>
+
+    <!-- Main Content: Two columns -->
+    <div class="main-row">
+        <!-- Left: Ranges -->
+        <div class="card">
+            <h3 class="card-title" data-t="ranges_to_scan_label">Ranges to scan</h3>
+            <p class="card-hint" data-t="ranges_hint_paste_fetch">Paste IPs or fetch IP ranges. One IP or CIDR per line.</p>
+            <textarea id="rangesText" class="ranges-textarea" rows="8" placeholder="192.168.1.0/24&#10;104.16.0.0/12"></textarea>
+            <div class="range-add-row">
+                <input type="text" id="addRangeInput" class="input" placeholder="IP or CIDR" />
+                <button class="btn btn-sm" id="btnAddRange" data-t="add_range_btn">Add</button>
+            </div>
+            <label class="checkbox-row">
+                <input type="checkbox" id="filterClean" checked />
+                <span data-t="filter_only_clean_label">Results: only IPs with open port + ping</span>
+            </label>
+        </div>
+
+        <!-- Right: Controls -->
+        <div class="card">
+            <h3 class="card-title" data-t="box_range_and_scan">Select range and scan method</h3>
+            <button class="btn btn-full" id="btnFetchRanges" data-t="fetch_ranges_btn">📡 Fetch Ranges</button>
+
+            <div class="control-row">
+                <label data-t="scan_method_label">Scan method</label>
+                <select id="scanMethod" class="select">
+                    <option value="cloud" data-t="scan_method_cloud">Cloud scan</option>
+                    <option value="operators" data-t="scan_method_operators">With operator IP ranges</option>
+                    <option value="v2ray" data-t="scan_method_v2ray">With custom config in V2rayN</option>
+                </select>
+            </div>
+
+            <!-- V2Ray Config Section -->
+            <div id="v2raySection" class="hidden">
+                <div class="control-row">
+                    <label>V2Ray Config</label>
+                    <textarea id="v2rayConfig" class="input" rows="3" placeholder="vless://uuid@ip:port?params#name"></textarea>
+                </div>
+                <button class="btn btn-sm" id="btnParseConfig">Parse Config</button>
+                <div id="v2rayParsed" class="parsed-config hidden"></div>
+            </div>
+
+            <!-- Operator Section: paste CDN ranges, select your operator → results show "CDN IP has ping on [operator]" -->
+            <div id="operatorSection" class="hidden">
+                <p class="card-hint" data-t="operators_mode_hint">Paste CDN ranges above. Select your operator — we check which CDN IPs have ping and open ports on that operator.</p>
+                <div class="control-row">
+                    <label data-t="operator_country">Operator country</label>
+                    <select id="operatorCountry" class="select">
+                        <option value="ir">Iran</option>
+                        <option value="ru">Russia</option>
+                        <option value="cn">China</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label data-t="operator_ping_on">Ping on operator</label>
+                    <select id="operatorSelect" class="select">
+                        <option value="">All</option>
+                    </select>
+                </div>
+                <button class="btn btn-sm btn-full" id="btnFetchAllOps" data-t="fetch_all_operators_btn">📡 Fetch all operator IPs</button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+        <button class="btn" id="btnSettings" data-t="settings">⚙️ Settings</button>
+        <button class="btn" id="btnAnalyze" data-t="analyze_btn">🤖 AI Analyze</button>
+        <button class="btn" id="btnReset" data-t="reset_data_btn">🔄 Reset data</button>
+        <button class="btn" id="btnSave" data-t="save_btn">💾 Save</button>
+        <button class="btn" id="btnStop" disabled data-t="stop_btn">⏹️ Stop</button>
+        <button class="btn btn-primary" id="btnStart" data-t="start_btn">🚀 Start Scan</button>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-section">
+        <div class="progress-header">
+            <h3 data-t="progress_title">Progress</h3>
+            <span id="progressStatus" data-t="ready_status">Ready to start</span>
+        </div>
+        <div class="progress-bar-outer">
+            <div class="progress-bar-inner" id="progressBar" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <!-- Results Table -->
+    <div class="results-section">
+        <h3 data-t="results_title">Results (by speed)</h3>
+        <div class="table-container">
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th data-t="rank_hdr">Rank</th>
+                        <th data-t="ip_hdr">IP</th>
+                        <th data-t="ping_hdr">Ping</th>
+                        <th data-t="ports_hdr">Ports</th>
+                        <th data-t="score_hdr">Score</th>
+                        <th id="thOperator" class="hidden" data-t="operator_hdr">Operator</th>
+                        <th id="thDownload" class="download-col hidden" data-t="download_hdr">Download</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Log Section - hidden by default, shown when log enabled in settings -->
+    <div id="logSection" class="log-section hidden">
+        <h3 data-t="log_title">📋 Scan Log</h3>
+        <div class="log-container" id="logContainer"></div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>Programming and design by: {{ author }}</p>
+        <div class="footer-links">
+            <a href="https://github.com/shahinst/cdn-ip-scanner" target="_blank">GitHub ⭐</a>
+            <a href="https://www.youtube.com/@shaahinst" target="_blank">YouTube 📺</a>
+            <a href="https://digicloud.tr" target="_blank">digicloud.tr</a>
+        </div>
+    </footer>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 data-t="settings">Settings</h2>
+                <button class="modal-close" id="closeSettings">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <h4 data-t="mode">Mode</h4>
+                    <select id="settingMode" class="select">
+                        <option value="hyper">Hyper (5s) — 20% resources</option>
+                        <option value="turbo">Turbo (10s) — 40% resources</option>
+                        <option value="ultra">Ultra (15s) — 60% resources</option>
+                        <option value="deep">Deep (30s) — 80% resources</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <h4 data-t="count">Target Count</h4>
+                    <select id="settingTarget" class="select">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="150">150</option>
+                        <option value="200">200</option>
+                        <option value="500">500</option>
+                        <option value="1000">1000</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <h4 data-t="settings_ping_range">Ping range filter (ms)</h4>
+                    <div class="ping-row">
+                        <input type="number" id="settingPingMin" class="input input-sm" value="0" min="0" />
+                        <span>—</span>
+                        <input type="number" id="settingPingMax" class="input input-sm" value="9999" min="0" />
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <h4 data-t="settings_ports">Scan ports</h4>
+                    <input type="text" id="settingPorts" class="input" value="443,80,8443,2053,2083,2087,2096" />
+                </div>
+                <div class="setting-group">
+                    <h4 data-t="settings_theme">Theme</h4>
+                    <div class="theme-row">
+                        <label><input type="radio" name="theme" value="light" checked /> ☀️ Light</label>
+                        <label><input type="radio" name="theme" value="dark" /> 🌙 Dark</label>
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <h4 data-t="settings_log">Log</h4>
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="settingLogEnabled" />
+                        <span data-t="settings_log_desc">Show scan log panel</span>
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <h4 data-t="settings_debug">Debug</h4>
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="settingDebug" />
+                        <span data-t="settings_debug_desc">Enable debug mode (detailed logs)</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="btnSaveSettings" data-t="save_btn">Save</button>
+                <button class="btn" id="btnCloseSettings" data-t="close_btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fetch Ranges Modal -->
+    <div id="fetchModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 data-t="range_fetcher_title">Fetch IP Ranges</h2>
+                <button class="modal-close" id="closeFetch">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="fetch-buttons">
+                    <button class="btn" data-source="sh_api">☁️ Cloudflare API</button>
+                    <button class="btn" data-source="sh_asn">🔢 Cloudflare ASN</button>
+                    <button class="btn" data-source="sh_github">🐙 Cloudflare GitHub</button>
+                    <button class="btn" data-source="fastly_api">⚡ Fastly API</button>
+                    <button class="btn" data-source="fastly_asn">🔢 Fastly ASN</button>
+                    <button class="btn" data-source="vfarid">✅ Verified CDN IPs</button>
+                    <button class="btn btn-primary" data-source="all_vfarid">🌐 All + Verified</button>
+                    <button class="btn" data-source="all">🌐 All (official)</button>
+                </div>
+                <div id="fetchStatus" class="fetch-status">Ready...</div>
+                <textarea id="fetchedRanges" class="ranges-textarea" rows="10" readonly></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="btnUseFetched">Use these ranges</button>
+                <button class="btn" id="btnCloseFetch" data-t="close_btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Format Modal -->
+    <div id="exportModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="exportModalTitle" data-t="export_modal_title">Choose export format</h2>
+                <button class="modal-close" id="closeExport">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="export-hint" id="exportHint" data-t="export_hint">Select the format for downloading results:</p>
+                <div class="export-format-buttons">
+                    <button type="button" class="btn btn-export" data-export="json" id="btnExportJson">
+                        <span class="export-icon">📄</span>
+                        <span data-t="export_json">JSON</span>
+                    </button>
+                    <button type="button" class="btn btn-export" data-export="excel" id="btnExportExcel">
+                        <span class="export-icon">📊</span>
+                        <span data-t="export_excel">Excel</span>
+                    </button>
+                    <button type="button" class="btn btn-export" data-export="txt" id="btnExportText">
+                        <span class="export-icon">📝</span>
+                        <span data-t="export_text">Text (IPs only)</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" id="btnCloseExport" data-t="close_btn">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

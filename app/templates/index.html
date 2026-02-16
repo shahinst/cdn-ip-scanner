@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="landing-page">
+    <div class="landing-center">
+        <div class="logo-container">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="CDN IP Scanner" class="landing-logo">
+        </div>
+        <h1 class="landing-title">CDN IP Scanner</h1>
+        <p class="landing-version">V {{ version }}</p>
+        <p class="landing-subtitle">High accuracy &bull; Ultra fast &bull; AI powered</p>
+
+        <div class="lang-selector">
+            <p class="lang-hint">Choose language / انتخاب زبان / 选择语言 / Выберите язык</p>
+            <div class="lang-buttons">
+                <a href="/scanner/fa" class="lang-btn">🇮🇷 فارسی</a>
+                <a href="/scanner/en" class="lang-btn">🇬🇧 English</a>
+                <a href="/scanner/zh" class="lang-btn">🇨🇳 中文</a>
+                <a href="/scanner/ru" class="lang-btn">🇷🇺 Русский</a>
+            </div>
+        </div>
+
+        <div class="landing-footer">
+            <p class="landing-credit">Programming and design by: {{ author }}</p>
+            <div class="landing-links">
+                <a href="https://github.com/shahinst/cdn-ip-scanner" target="_blank">GitHub</a>
+                <a href="https://www.youtube.com/@shaahinst" target="_blank">YouTube</a>
+                <a href="https://digicloud.tr" target="_blank">digicloud.tr</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
