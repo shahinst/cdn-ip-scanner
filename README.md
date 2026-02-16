@@ -42,7 +42,7 @@ The scanner uses a proven **5-attempt verification method** with `/cdn-cgi/trace
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-Source Range Fetching** | Fetch CDN IP ranges from Cloudflare API, ASN, GitHub, Fastly, and vfarid verified list |
+| **Multi-Source Range Fetching** | Fetch CDN IP ranges from Cloudflare API, ASN, GitHub, Fastly verified list |
 | **5-Attempt Verification** | Each IP is tested 5 times with connection reuse — minimum 3/5 success required |
 | **Real-Time Results** | Results appear instantly via WebSocket as each IP is found |
 | **Operator Detection** | Test CDN IPs against Iranian (Irancell, MCI, Rightel, Shuttle), Chinese, and Russian operators |
@@ -178,7 +178,7 @@ Watch the full installation and usage tutorial on YouTube:
 
 | ویژگی | توضیحات |
 |-------|---------|
-| **دریافت رنج از چندین منبع** | دریافت رنج آی‌پی CDN از API کلودفلر، ASN، گیت‌هاب، فستلی و لیست تأیید‌شده vfarid |
+| **دریافت رنج از چندین منبع** | دریافت رنج آی‌پی CDN از API کلودفلر، ASN، گیت‌هاب، فستلی |
 | **تأیید ۵ مرحله‌ای** | هر آی‌پی ۵ بار با استفاده مجدد از اتصال تست می‌شود — حداقل ۳ از ۵ موفقیت لازم است |
 | **نتایج لحظه‌ای** | نتایج از طریق WebSocket بلافاصله پس از پیدا شدن هر آی‌پی نمایش داده می‌شود |
 | **تشخیص اپراتور** | تست آی‌پی‌های CDN روی اپراتورهای ایرانی (ایرانسل، همراه اول، رایتل، شاتل)، چینی و روسی |
