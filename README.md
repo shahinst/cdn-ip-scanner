@@ -162,7 +162,7 @@ python run.py --port 8080
 
 Watch the full installation and usage tutorial on YouTube:
 
-### **[📺 Watch on YouTube](https://www.youtube.com/@shaahinst)**
+### **[📺 Watch on YouTube]([https://www.youtube.com/@shaahinst](https://youtu.be/S8H9AMVfz6M))**
 
 ---
 
