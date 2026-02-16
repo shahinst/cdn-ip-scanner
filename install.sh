@@ -711,15 +711,15 @@ install_acme_sh() {
     fi
     echo -e "  ${BLUE}Installing acme.sh for ACME/Let's Encrypt (IP SSL)...${NC}"
     # Use env to guarantee HOME for the pipe (subshell may not inherit)
-    ( export HOME=/root; curl -sL https://get.acme.sh | sh -s email=admin@cdn-scanner.local ) 2>>"$LOG_FILE" || true
+    ( export HOME=/root; curl -sL https://get.acme.sh | sh -s email=admin@example.com ) 2>>"$LOG_FILE" || true
     if [ ! -f "$ACME_SH" ]; then
-        ( export HOME=/root; curl -sL https://get.acme.sh | bash -s email=admin@cdn-scanner.local ) 2>&1 | tee -a "$LOG_FILE" || true
+        ( export HOME=/root; curl -sL https://get.acme.sh | bash -s email=admin@example.com ) 2>&1 | tee -a "$LOG_FILE" || true
     fi
     if [ ! -f "$ACME_SH" ]; then
         echo -e "  ${YELLOW}Retry with visible output...${NC}"
         export HOME=/root
         curl -sL https://get.acme.sh -o /tmp/acme-install.sh
-        sh /tmp/acme-install.sh email=admin@cdn-scanner.local 2>&1 | tee -a "$LOG_FILE" || true
+        sh /tmp/acme-install.sh email=admin@example.com 2>&1 | tee -a "$LOG_FILE" || true
         rm -f /tmp/acme-install.sh
     fi
     if [ -f "$ACME_SH" ]; then
@@ -1824,7 +1824,7 @@ cmd_ssl() {
         ACME_SH="/root/.acme.sh/acme.sh"
         if [ ! -f "$ACME_SH" ]; then
             echo -e "  ${YELLOW}acme.sh not found. Installing now...${NC}"
-            if ! curl -sL https://get.acme.sh | sh -s email=admin@cdn-scanner.local; then
+            if ! curl -sL https://get.acme.sh | sh -s email=admin@example.com; then
                 echo -e "  ${RED}acme.sh installation failed.${NC}"
                 exit 1
             fi
