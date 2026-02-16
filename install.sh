@@ -694,6 +694,7 @@ SSLCNF
 
     log "  Dates   : ${CERT_DATES}"
     log "SSL certificate ready: ${SSL_CERT}"
+    echo -e "  ${GREEN}SSL installed successfully (cert: ${SSL_CERT}) ✔${NC}"
 
     # Clean up temp config
     rm -f "$OPENSSL_CNF"
@@ -709,19 +710,23 @@ install_acme_sh() {
         return 0
     fi
     echo -e "  ${BLUE}Installing acme.sh for ACME/Let's Encrypt (IP SSL)...${NC}"
-    if ! curl -sL https://get.acme.sh | sh -s -- --register-unsafely-without-email 2>>"$LOG_FILE"; then
-        warn "acme.sh install script returned error (check log)"
+    # Use env to guarantee HOME for the pipe (subshell may not inherit)
+    ( export HOME=/root; curl -sL https://get.acme.sh | sh -s email=admin@cdn-scanner.local ) 2>>"$LOG_FILE" || true
+    if [ ! -f "$ACME_SH" ]; then
+        ( export HOME=/root; curl -sL https://get.acme.sh | bash -s email=admin@cdn-scanner.local ) 2>&1 | tee -a "$LOG_FILE" || true
     fi
     if [ ! -f "$ACME_SH" ]; then
-        # Retry without suppressing output
-        echo -e "  ${YELLOW}Retrying acme.sh install (showing output)...${NC}"
-        curl -sL https://get.acme.sh | sh -s -- --register-unsafely-without-email 2>&1 | tee -a "$LOG_FILE" || true
+        echo -e "  ${YELLOW}Retry with visible output...${NC}"
+        export HOME=/root
+        curl -sL https://get.acme.sh -o /tmp/acme-install.sh
+        sh /tmp/acme-install.sh email=admin@cdn-scanner.local 2>&1 | tee -a "$LOG_FILE" || true
+        rm -f /tmp/acme-install.sh
     fi
     if [ -f "$ACME_SH" ]; then
         log "acme.sh installed: $ACME_SH"
         return 0
     fi
-    err "acme.sh installation failed. SSL on IP may use self-signed only."
+    err "acme.sh installation failed. SSL on IP will use self-signed (HTTPS still works)."
     return 1
 }
 
@@ -739,14 +744,19 @@ try_acme_ip() {
         install_acme_sh || return 1
     fi
 
-    # Ensure webroot exists and is writable
+    # Ensure webroot exists and writable by root (acme.sh) and nginx (to serve)
     mkdir -p "$ACME_CHALLENGE_DIR/.well-known/acme-challenge"
     chown -R www-data:www-data "$ACME_CHALLENGE_DIR" 2>/dev/null || chown -R nginx:nginx "$ACME_CHALLENGE_DIR" 2>/dev/null || true
     chmod -R 755 "$ACME_CHALLENGE_DIR"
 
+    # Brief wait so Nginx is ready to serve ACME challenge
+    echo -e "    ${BLUE}Waiting for Nginx to be ready (3s)...${NC}"
+    sleep 3
+
     # Issue Let's Encrypt IP certificate (shortlived profile, ~6 days validity)
     echo -e "    ${BLUE}Requesting certificate for IP: ${HOSTNAME_INPUT}${NC}"
     ACME_OUT=$(mktemp)
+    export HOME=/root
     "$ACME_SH" --issue \
         -d "$HOSTNAME_INPUT" \
         --webroot "$ACME_CHALLENGE_DIR" \
@@ -757,6 +767,21 @@ try_acme_ip() {
         >> "$ACME_OUT" 2>&1
     ACME_ISSUE_EXIT=$?
     cat "$ACME_OUT" >> "$LOG_FILE"
+
+    if [ $ACME_ISSUE_EXIT -ne 0 ]; then
+        echo -e "    ${YELLOW}First attempt failed. Retrying once in 10s...${NC}"
+        sleep 10
+        "$ACME_SH" --issue \
+            -d "$HOSTNAME_INPUT" \
+            --webroot "$ACME_CHALLENGE_DIR" \
+            --server letsencrypt \
+            --certificate-profile shortlived \
+            --days 5 \
+            --force \
+            >> "$ACME_OUT" 2>&1
+        ACME_ISSUE_EXIT=$?
+        cat "$ACME_OUT" >> "$LOG_FILE"
+    fi
 
     if [ $ACME_ISSUE_EXIT -ne 0 ]; then
         cat "$ACME_OUT"
@@ -799,15 +824,15 @@ try_letsencrypt() {
         if try_acme_ip; then
             return 0
         fi
-        # Fallback: keep self-signed
+        # Fallback: keep self-signed — SSL is still installed and working
         echo ""
-        log "Using self-signed certificate for IP (ACME/Let's Encrypt IP request failed or unavailable)."
+        log "ACME/Let's Encrypt IP request failed or unavailable. Using self-signed certificate (already installed)."
+        echo -e "  ${GREEN}SSL is installed and working. Panel: https://${HOSTNAME_INPUT} ✔${NC}"
         echo -e "  ${YELLOW}╔════════════════════════════════════════════════════════════╗${NC}"
-        echo -e "  ${YELLOW}║  SSL on IP: Self-signed certificate (encrypted).           ║${NC}"
-        echo -e "  ${YELLOW}║  Connection is secure; browser may show a warning.         ║${NC}"
-        echo -e "  ${YELLOW}║  Chrome: Advanced → Proceed to <ip>                        ║${NC}"
-        echo -e "  ${YELLOW}║  To get trusted SSL later: ensure port 80 is open, then   ║${NC}"
-        echo -e "  ${YELLOW}║  run: cdn-scanner-manage ssl                              ║${NC}"
+        echo -e "  ${YELLOW}║  Certificate: self-signed (connection is encrypted).       ║${NC}"
+        echo -e "  ${YELLOW}║  Browser may show a warning — click Advanced → Proceed.   ║${NC}"
+        echo -e "  ${YELLOW}║  To get trusted SSL later: open port 80, then run:         ║${NC}"
+        echo -e "  ${YELLOW}║  sudo cdn-scanner-manage ssl                              ║${NC}"
         echo -e "  ${YELLOW}╚════════════════════════════════════════════════════════════╝${NC}"
         echo ""
         return 0
@@ -1799,7 +1824,7 @@ cmd_ssl() {
         ACME_SH="/root/.acme.sh/acme.sh"
         if [ ! -f "$ACME_SH" ]; then
             echo -e "  ${YELLOW}acme.sh not found. Installing now...${NC}"
-            if ! curl -sL https://get.acme.sh | sh -s -- --register-unsafely-without-email; then
+            if ! curl -sL https://get.acme.sh | sh -s email=admin@cdn-scanner.local; then
                 echo -e "  ${RED}acme.sh installation failed.${NC}"
                 exit 1
             fi
