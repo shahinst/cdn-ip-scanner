@@ -204,6 +204,26 @@ get_user_input() {
             ;;
     esac
 
+    # Email for Let's Encrypt (required for IP SSL; must be valid domain e.g. you@gmail.com)
+    ACME_EMAIL=""
+    if [ "$USE_DOMAIN" != true ]; then
+        echo ""
+        echo -e "  ${YELLOW}Let's Encrypt (IP SSL) needs a valid contact email with a real domain (e.g. you@gmail.com).${NC}"
+        while true; do
+            read -rp "$(echo -e "${BLUE}Email for Let's Encrypt (your real email): ${NC}")" ACME_EMAIL
+            ACME_EMAIL=$(echo "$ACME_EMAIL" | tr -d ' \t')
+            if [ -n "$ACME_EMAIL" ] && echo "$ACME_EMAIL" | grep -qE '^[^@]+@[^@]+\.[a-zA-Z]{2,}$' && ! echo "$ACME_EMAIL" | grep -qE '\.(local|localhost|localdomain)$'; then
+                break
+            fi
+            if [ -n "$ACME_EMAIL" ]; then
+                warn "Use a valid email with a real TLD (e.g. name@gmail.com). Avoid .local"
+            fi
+        done
+        log "ACME email: ${ACME_EMAIL}"
+    else
+        ACME_EMAIL="admin@example.com"
+    fi
+
     echo ""
     echo -e "${BOLD}-- Summary --${NC}"
     echo -e "  Panel URL : ${GREEN}https://${HOSTNAME_INPUT}${NC} (port 443, SSL)"
@@ -211,6 +231,7 @@ get_user_input() {
     echo -e "  Password  : ${GREEN}****${NC}"
     echo -e "  Backend   : ${GREEN}127.0.0.1:${APP_PORT}${NC} (internal, Nginx proxies to this)"
     echo -e "  Mode      : ${GREEN}$([ "$USE_DOMAIN" = true ] && echo "Domain" || echo "IP address")${NC}"
+    [ -n "$ACME_EMAIL" ] && echo -e "  ACME email : ${GREEN}${ACME_EMAIL}${NC}"
     echo ""
     read -rp "$(echo -e "${YELLOW}Continue? [Y/n]: ${NC}")" CONFIRM
     case "$CONFIRM" in
@@ -709,17 +730,17 @@ install_acme_sh() {
         log "acme.sh already installed: $ACME_SH"
         return 0
     fi
+    ACME_MAIL="${ACME_EMAIL:-admin@example.com}"
     echo -e "  ${BLUE}Installing acme.sh for ACME/Let's Encrypt (IP SSL)...${NC}"
-    # Use env to guarantee HOME for the pipe (subshell may not inherit)
-    ( export HOME=/root; curl -sL https://get.acme.sh | sh -s email=admin@example.com ) 2>>"$LOG_FILE" || true
+    ( export HOME=/root; curl -sL https://get.acme.sh | sh -s email="${ACME_MAIL}" ) 2>>"$LOG_FILE" || true
     if [ ! -f "$ACME_SH" ]; then
-        ( export HOME=/root; curl -sL https://get.acme.sh | bash -s email=admin@example.com ) 2>&1 | tee -a "$LOG_FILE" || true
+        ( export HOME=/root; curl -sL https://get.acme.sh | bash -s email="${ACME_MAIL}" ) 2>&1 | tee -a "$LOG_FILE" || true
     fi
     if [ ! -f "$ACME_SH" ]; then
         echo -e "  ${YELLOW}Retry with visible output...${NC}"
         export HOME=/root
         curl -sL https://get.acme.sh -o /tmp/acme-install.sh
-        sh /tmp/acme-install.sh email=admin@example.com 2>&1 | tee -a "$LOG_FILE" || true
+        sh /tmp/acme-install.sh email="${ACME_MAIL}" 2>&1 | tee -a "$LOG_FILE" || true
         rm -f /tmp/acme-install.sh
     fi
     if [ -f "$ACME_SH" ]; then
@@ -755,6 +776,7 @@ try_acme_ip() {
 
     # Issue Let's Encrypt IP certificate (shortlived profile, ~6 days validity)
     echo -e "    ${BLUE}Requesting certificate for IP: ${HOSTNAME_INPUT}${NC}"
+    ACME_MAIL="${ACME_EMAIL:-admin@example.com}"
     ACME_OUT=$(mktemp)
     export HOME=/root
     "$ACME_SH" --issue \
@@ -768,9 +790,35 @@ try_acme_ip() {
     ACME_ISSUE_EXIT=$?
     cat "$ACME_OUT" >> "$LOG_FILE"
 
+    # If failed due to invalid contact email, remove old account and reinstall acme.sh with correct email (same as cdn-scanner-manage ssl)
+    if [ $ACME_ISSUE_EXIT -ne 0 ] && grep -q "invalidContact\|invalid contact" "$ACME_OUT" 2>/dev/null; then
+        echo -e "    ${YELLOW}Let's Encrypt rejected the account email. Reinstalling acme.sh with email from config...${NC}"
+        rm -rf /root/.acme.sh
+        ACME_SH="/root/.acme.sh/acme.sh"
+        if ! install_acme_sh; then
+            cat "$ACME_OUT"
+            rm -f "$ACME_OUT"
+            return 1
+        fi
+        rm -f "$ACME_OUT"
+        ACME_OUT=$(mktemp)
+        "$ACME_SH" --issue \
+            -d "$HOSTNAME_INPUT" \
+            --webroot "$ACME_CHALLENGE_DIR" \
+            --server letsencrypt \
+            --certificate-profile shortlived \
+            --days 5 \
+            --force \
+            >> "$ACME_OUT" 2>&1
+        ACME_ISSUE_EXIT=$?
+        cat "$ACME_OUT" >> "$LOG_FILE"
+    fi
+
     if [ $ACME_ISSUE_EXIT -ne 0 ]; then
         echo -e "    ${YELLOW}First attempt failed. Retrying once in 10s...${NC}"
         sleep 10
+        rm -f "$ACME_OUT"
+        ACME_OUT=$(mktemp)
         "$ACME_SH" --issue \
             -d "$HOSTNAME_INPUT" \
             --webroot "$ACME_CHALLENGE_DIR" \
@@ -1707,6 +1755,7 @@ INSTALL_CONF="/etc/${APP_NAME}/install.conf"
 
 write_install_config() {
     mkdir -p "/etc/${APP_NAME}"
+    [ -z "$ACME_EMAIL" ] && ACME_EMAIL="admin@example.com"
     cat > "$INSTALL_CONF" << INSTALLCONF
 # CDN IP Scanner — install state (used by cdn-scanner-manage)
 HOSTNAME_INPUT=${HOSTNAME_INPUT}
@@ -1718,6 +1767,7 @@ APP_DIR=${APP_DIR}
 SERVICE_NAME=${SERVICE_NAME}
 NGINX_CONF=${NGINX_CONF}
 NGINX_CONF_D=${NGINX_CONF_D}
+ACME_EMAIL=${ACME_EMAIL}
 INSTALLCONF
     chmod 644 "$INSTALL_CONF"
     log "Install config saved: ${INSTALL_CONF}"
@@ -1822,9 +1872,10 @@ cmd_ssl() {
         echo -e "  ${BLUE}IP mode: Let's Encrypt IP certificate (acme.sh)...${NC}"
         export HOME=/root
         ACME_SH="/root/.acme.sh/acme.sh"
+        ACME_MAIL="${ACME_EMAIL:-admin@example.com}"
         if [ ! -f "$ACME_SH" ]; then
-            echo -e "  ${YELLOW}acme.sh not found. Installing now...${NC}"
-            if ! curl -sL https://get.acme.sh | sh -s email=admin@example.com; then
+            echo -e "  ${YELLOW}acme.sh not found. Installing with email ${ACME_MAIL}...${NC}"
+            if ! curl -sL https://get.acme.sh | sh -s email="${ACME_MAIL}"; then
                 echo -e "  ${RED}acme.sh installation failed.${NC}"
                 exit 1
             fi
@@ -1838,12 +1889,43 @@ cmd_ssl() {
         chown -R www-data:www-data "$ACME_CHALLENGE_DIR" 2>/dev/null || chown -R nginx:nginx "$ACME_CHALLENGE_DIR" 2>/dev/null || true
         chmod -R 755 "$ACME_CHALLENGE_DIR"
         export HOME=/root
-        if "$ACME_SH" --issue -d "$HOSTNAME_INPUT" \
+        ACME_TMP=$(mktemp)
+        if ! "$ACME_SH" --issue -d "$HOSTNAME_INPUT" \
             --webroot "$ACME_CHALLENGE_DIR" \
             --server letsencrypt \
             --certificate-profile shortlived \
             --days 5 \
-            --force; then
+            --force 2>"$ACME_TMP"; then
+            if grep -q "invalidContact\|invalid contact" "$ACME_TMP" 2>/dev/null; then
+                echo -e "  ${YELLOW}Let's Encrypt rejected the account email. Removing old account and reinstalling acme.sh with email from config...${NC}"
+                rm -rf /root/.acme.sh
+                ACME_SH="/root/.acme.sh/acme.sh"
+                if ! curl -sL https://get.acme.sh | sh -s email="${ACME_MAIL}"; then
+                    cat "$ACME_TMP"
+                    rm -f "$ACME_TMP"
+                    echo -e "  ${RED}Reinstall failed. Add a valid email to config: echo 'ACME_EMAIL=your@real-email.com' >> $INSTALL_CONF${NC}"
+                    echo -e "  Then run: sudo rm -rf /root/.acme.sh && sudo cdn-scanner-manage ssl"
+                    exit 1
+                fi
+                rm -f "$ACME_TMP"
+                if "$ACME_SH" --issue -d "$HOSTNAME_INPUT" --webroot "$ACME_CHALLENGE_DIR" --server letsencrypt --certificate-profile shortlived --days 5 --force; then
+                    "$ACME_SH" --install-cert -d "$HOSTNAME_INPUT" --key-file "${SSL_DIR}/key.pem" --fullchain-file "${SSL_DIR}/cert.pem" --reloadcmd "systemctl reload nginx"
+                    chmod 644 "${SSL_DIR}/cert.pem"
+                    chmod 600 "${SSL_DIR}/key.pem"
+                    systemctl reload nginx 2>/dev/null || true
+                    echo -e "  ${GREEN}SSL certificate installed successfully.${NC}"
+                else
+                    echo -e "  ${RED}Still failed. Set a valid email: echo 'ACME_EMAIL=you@gmail.com' >> $INSTALL_CONF then rm -rf /root/.acme.sh and run this again.${NC}"
+                    exit 1
+                fi
+            else
+                cat "$ACME_TMP"
+                rm -f "$ACME_TMP"
+                echo -e "  ${YELLOW}Renewal failed. Ensure port 80 is open from the internet.${NC}"
+                exit 1
+            fi
+        else
+            rm -f "$ACME_TMP"
             "$ACME_SH" --install-cert -d "$HOSTNAME_INPUT" \
                 --key-file "${SSL_DIR}/key.pem" \
                 --fullchain-file "${SSL_DIR}/cert.pem" \
@@ -1852,9 +1934,6 @@ cmd_ssl() {
             chmod 600 "${SSL_DIR}/key.pem"
             systemctl reload nginx 2>/dev/null || true
             echo -e "  ${GREEN}SSL certificate renewed successfully.${NC}"
-        else
-            echo -e "  ${YELLOW}Renewal failed. Ensure port 80 is open from the internet.${NC}"
-            exit 1
         fi
     fi
     echo ""
