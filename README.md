@@ -162,7 +162,9 @@ python run.py --port 8080
 
 Watch the full installation and usage tutorial on YouTube:
 
-### **[📺 Watch on YouTube]([https://www.youtube.com/@shaahinst](https://youtu.be/S8H9AMVfz6M))**
+
+[Watch the full video here](https://youtu.be/S8H9AMVfz6M)
+
 
 ---
 
@@ -295,8 +297,7 @@ bash /opt/cdn-ip-scanner/uninstall.sh
 
 آموزش کامل نصب و استفاده از برنامه را در یوتیوب ببینید:
 
-### **[📺 مشاهده در یوتیوب](https://www.youtube.com/@shaahinst)**
-
+### **📺 [مشاهده در یوتیوب](https://youtu.be/S8H9AMVfz6M)**
 ---
 
 ## 🛠 Tech Stack
