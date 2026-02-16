@@ -1276,7 +1276,11 @@ SVCEOF
     echo -e "    ${GREEN}Systemd daemon reloaded ✔${NC}"
 
     systemctl enable "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || true
-    echo -e "    ${GREEN}Service enabled on boot ✔${NC}"
+    if systemctl is-enabled --quiet "$SERVICE_NAME" 2>/dev/null; then
+        echo -e "    ${GREEN}Service enabled on boot (will start automatically after server restart) ✔${NC}"
+    else
+        systemctl enable "$SERVICE_NAME" 2>> "$LOG_FILE" && echo -e "    ${GREEN}Service enabled on boot ✔${NC}" || echo -e "    ${YELLOW}Could not enable service on boot (start manually if needed)${NC}"
+    fi
     echo ""
     log "Systemd service created"
 }
@@ -1882,6 +1886,12 @@ cmd_status() {
         echo -e "  ${BOLD}Nginx${NC}     : ${RED}stopped ✘${NC}"
     fi
 
+    if systemctl is-enabled --quiet "$SERVICE_NAME" 2>/dev/null; then
+        echo -e "  ${BOLD}Boot${NC}      : ${GREEN}enabled (starts automatically on reboot) ✔${NC}"
+    else
+        echo -e "  ${BOLD}Boot${NC}      : ${YELLOW}disabled (enable: systemctl enable ${SERVICE_NAME})${NC}"
+    fi
+
     if [ -f "${SSL_DIR}/cert.pem" ]; then
         EXPIRY=$(openssl x509 -in "${SSL_DIR}/cert.pem" -noout -enddate 2>/dev/null | cut -d= -f2)
         echo -e "  ${BOLD}SSL cert${NC}  : ${GREEN}${SSL_DIR}/cert.pem${NC}"
@@ -2128,13 +2138,18 @@ main() {
     write_install_config
     create_manage_script
 
-    # Final restart to apply everything
+    # Final restart and ensure service starts on boot
     echo ""
     echo -e "  ${BLUE}Final service restart...${NC}"
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl enable "$SERVICE_NAME" >> "$LOG_FILE" 2>&1 || true
     systemctl restart "$SERVICE_NAME" 2>/dev/null || true
     sleep 2
     if systemctl is-active --quiet "$SERVICE_NAME"; then
         echo -e "    ${GREEN}Service running ✔${NC}"
+    fi
+    if systemctl is-enabled --quiet "$SERVICE_NAME" 2>/dev/null; then
+        echo -e "    ${GREEN}Service will start automatically on server reboot ✔${NC}"
     fi
 
     END_TIME=$(date +%s)
