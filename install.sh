@@ -348,58 +348,112 @@ ENVEOF
 }
 
 # ───────── SSL certificates ─────────
-# Domain → Let's Encrypt (ACME). IP → self-signed (no public CA for IP).
-# We ALWAYS create self-signed first so Nginx can start; then upgrade to LE if domain.
+# Domain → self-signed first, then Let's Encrypt (ACME) upgrade.
+# IP     → self-signed with proper SAN (Subject Alternative Name).
+#
+# IMPORTANT: Modern browsers (Chrome 58+, Firefox 48+) REQUIRE the SAN extension.
+# A certificate with only CN=<ip> is rejected as ERR_CERT_COMMON_NAME_INVALID.
+# For IPs the SAN must be "IP:<address>", for domains "DNS:<name>".
 setup_ssl() {
-    log "Setting up SSL..."
+    log "Setting up SSL certificates..."
 
     mkdir -p "$SSL_DIR"
     chmod 755 "$SSL_DIR"
 
-    # Safe CN for openssl (no spaces, newlines, or special chars)
-    SSL_CN=$(echo "$HOSTNAME_INPUT" | tr -d '\n\r\t' | head -c 128)
+    # Clean CN (no whitespace/control chars)
+    SSL_CN=$(echo "$HOSTNAME_INPUT" | tr -d '\n\r\t ' | head -c 128)
     [ -z "$SSL_CN" ] && SSL_CN="localhost"
 
-    # ─── On IP: only self-signed (ACME/Let's Encrypt does not issue for IP) ───
+    # ── Build SAN value based on IP vs domain ──
     if [ "$USE_DOMAIN" = false ]; then
-        log "IP mode: generating self-signed certificate (ACME not available for IP)..."
-        if ! openssl req -x509 -nodes -days 3650 \
-            -newkey rsa:2048 \
-            -keyout "${SSL_DIR}/key.pem" \
-            -out "${SSL_DIR}/cert.pem" \
-            -subj "/C=US/ST=State/L=City/O=CDN-Scanner/CN=${SSL_CN}" \
-            2>>"$LOG_FILE"; then
-            # Retry with minimal subject
-            openssl req -x509 -nodes -days 3650 \
-                -newkey rsa:2048 \
-                -keyout "${SSL_DIR}/key.pem" \
-                -out "${SSL_DIR}/cert.pem" \
-                -subj "/CN=${SSL_CN}" \
-                2>>"$LOG_FILE" || true
-        fi
+        # IP mode: SAN = IP:<addr>,IP:127.0.0.1,DNS:localhost
+        SAN_ENTRY="IP:${SSL_CN},IP:127.0.0.1,DNS:localhost"
+        log "IP mode → generating self-signed certificate with SAN: ${SAN_ENTRY}"
     else
-        # ─── On domain: create self-signed first (Nginx needs cert to start); later upgrade to Let's Encrypt ───
-        log "Domain mode: generating temporary self-signed certificate..."
-        openssl req -x509 -nodes -days 3650 \
-            -newkey rsa:2048 \
-            -keyout "${SSL_DIR}/key.pem" \
-            -out "${SSL_DIR}/cert.pem" \
-            -subj "/C=US/ST=State/L=City/O=CDN-Scanner/CN=${SSL_CN}" \
-            2>>"$LOG_FILE" || true
-        if [ ! -f "${SSL_DIR}/cert.pem" ]; then
-            openssl req -x509 -nodes -days 3650 \
-                -newkey rsa:2048 \
-                -keyout "${SSL_DIR}/key.pem" \
-                -out "${SSL_DIR}/cert.pem" \
-                -subj "/CN=${SSL_CN}" \
-                2>>"$LOG_FILE" || true
-        fi
+        # Domain mode: SAN = DNS:<domain>,DNS:localhost,IP:127.0.0.1
+        SAN_ENTRY="DNS:${SSL_CN},DNS:localhost,IP:127.0.0.1"
+        log "Domain mode → generating temporary self-signed certificate with SAN: ${SAN_ENTRY}"
     fi
 
-    if [ ! -f "${SSL_DIR}/cert.pem" ] || [ ! -f "${SSL_DIR}/key.pem" ]; then
-        err "OpenSSL failed. Last lines of log:"
-        tail -5 "$LOG_FILE" 2>/dev/null || true
-        die "SSL certificate generation failed. Ensure openssl is installed and ${SSL_DIR} is writable."
+    # Remove any old certs
+    rm -f "${SSL_DIR}/cert.pem" "${SSL_DIR}/key.pem" "${SSL_DIR}/openssl.cnf"
+
+    # ─────────────────────────────────────────────────
+    # Method 1: OpenSSL config file (most compatible)
+    # ─────────────────────────────────────────────────
+    OPENSSL_CNF="${SSL_DIR}/openssl.cnf"
+    cat > "$OPENSSL_CNF" << SSLCNF
+[req]
+default_bits       = 2048
+prompt             = no
+default_md         = sha256
+distinguished_name = dn
+x509_extensions    = v3_ca
+req_extensions     = v3_ca
+
+[dn]
+C  = US
+ST = State
+L  = City
+O  = CDN-IP-Scanner
+CN = ${SSL_CN}
+
+[v3_ca]
+subjectAltName     = ${SAN_ENTRY}
+basicConstraints   = critical,CA:TRUE
+keyUsage           = critical,digitalSignature,keyEncipherment,keyCertSign
+extendedKeyUsage   = serverAuth
+SSLCNF
+
+    log "Generating certificate (method 1: config file with SAN)..."
+    openssl req -x509 -nodes -sha256 -days 3650 \
+        -newkey rsa:2048 \
+        -keyout "${SSL_DIR}/key.pem" \
+        -out "${SSL_DIR}/cert.pem" \
+        -config "$OPENSSL_CNF" \
+        -extensions v3_ca \
+        2>>"$LOG_FILE"
+
+    # ─────────────────────────────────────────────────
+    # Method 2: -addext flag (OpenSSL >= 1.1.1)
+    # ─────────────────────────────────────────────────
+    if [ ! -f "${SSL_DIR}/cert.pem" ] || [ ! -s "${SSL_DIR}/cert.pem" ]; then
+        warn "Method 1 failed, trying method 2 (-addext)..."
+        rm -f "${SSL_DIR}/cert.pem" "${SSL_DIR}/key.pem"
+        openssl req -x509 -nodes -sha256 -days 3650 \
+            -newkey rsa:2048 \
+            -keyout "${SSL_DIR}/key.pem" \
+            -out "${SSL_DIR}/cert.pem" \
+            -subj "/C=US/ST=State/L=City/O=CDN-IP-Scanner/CN=${SSL_CN}" \
+            -addext "subjectAltName=${SAN_ENTRY}" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,digitalSignature,keyEncipherment,keyCertSign" \
+            -addext "extendedKeyUsage=serverAuth" \
+            2>>"$LOG_FILE" || true
+    fi
+
+    # ─────────────────────────────────────────────────
+    # Method 3: Bare self-signed (very old OpenSSL)
+    # ─────────────────────────────────────────────────
+    if [ ! -f "${SSL_DIR}/cert.pem" ] || [ ! -s "${SSL_DIR}/cert.pem" ]; then
+        warn "SAN methods failed. Generating basic self-signed (older browsers may complain)..."
+        rm -f "${SSL_DIR}/cert.pem" "${SSL_DIR}/key.pem"
+        openssl req -x509 -nodes -sha256 -days 3650 \
+            -newkey rsa:2048 \
+            -keyout "${SSL_DIR}/key.pem" \
+            -out "${SSL_DIR}/cert.pem" \
+            -subj "/CN=${SSL_CN}" \
+            2>>"$LOG_FILE" || true
+    fi
+
+    # ── Validate results ──
+    if [ ! -f "${SSL_DIR}/cert.pem" ] || [ ! -s "${SSL_DIR}/cert.pem" ]; then
+        err "All SSL generation methods failed. Log tail:"
+        tail -10 "$LOG_FILE" 2>/dev/null || true
+        die "SSL certificate generation failed. Check openssl and permissions on ${SSL_DIR}."
+    fi
+    if [ ! -f "${SSL_DIR}/key.pem" ] || [ ! -s "${SSL_DIR}/key.pem" ]; then
+        die "SSL key generation failed."
     fi
 
     SSL_CERT="${SSL_DIR}/cert.pem"
@@ -408,29 +462,63 @@ setup_ssl() {
     chmod 600 "${SSL_KEY}"
     chown root:root "${SSL_CERT}" "${SSL_KEY}" 2>/dev/null || true
 
-    # Verify
-    if openssl x509 -in "$SSL_CERT" -noout -subject 2>/dev/null; then
-        log "SSL certificate installed: $(openssl x509 -in "$SSL_CERT" -noout -subject 2>/dev/null)"
+    # ── Verify certificate details ──
+    log "Verifying certificate..."
+    CERT_SUBJECT=$(openssl x509 -in "$SSL_CERT" -noout -subject 2>/dev/null) || true
+    CERT_SAN=$(openssl x509 -in "$SSL_CERT" -noout -text 2>/dev/null | grep -A1 "Subject Alternative Name" | tail -1 | sed 's/^[ ]*//' ) || true
+    CERT_DATES=$(openssl x509 -in "$SSL_CERT" -noout -dates 2>/dev/null) || true
+
+    if [ -n "$CERT_SUBJECT" ]; then
+        log "  Subject : ${CERT_SUBJECT}"
     else
-        die "Generated certificate is invalid."
+        die "Generated certificate is invalid (cannot read subject)."
     fi
+
+    if [ -n "$CERT_SAN" ]; then
+        log "  SAN     : ${CERT_SAN}"
+    else
+        warn "  SAN     : (not found — older browsers may reject this certificate)"
+    fi
+
+    log "  Dates   : ${CERT_DATES}"
+    log "SSL certificate ready: ${SSL_CERT}"
+
+    # Clean up temp config
+    rm -f "$OPENSSL_CNF"
 }
 
-# Let's Encrypt (ACME) — only for domain, after Nginx is running with self-signed
+# Let's Encrypt (ACME) — only for domains, after Nginx is running with self-signed
 try_letsencrypt() {
     if [ "$USE_DOMAIN" != true ]; then
-        log "IP access: using self-signed certificate (Let's Encrypt does not support IP)."
+        log "IP-based access → self-signed certificate is the only option."
+        log "(Let's Encrypt / ACME does not issue certificates for bare IP addresses)"
+        echo ""
+        echo -e "  ${YELLOW}╔════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "  ${YELLOW}║  SSL on IP: Self-signed certificate installed.            ║${NC}"
+        echo -e "  ${YELLOW}║                                                            ║${NC}"
+        echo -e "  ${YELLOW}║  Your connection IS encrypted (HTTPS works).               ║${NC}"
+        echo -e "  ${YELLOW}║  Browser will show a warning — this is NORMAL for IP SSL.  ║${NC}"
+        echo -e "  ${YELLOW}║                                                            ║${NC}"
+        echo -e "  ${YELLOW}║  To proceed:                                               ║${NC}"
+        echo -e "  ${YELLOW}║    Chrome : Click 'Advanced' → 'Proceed to <ip>'           ║${NC}"
+        echo -e "  ${YELLOW}║    Firefox: Click 'Advanced' → 'Accept the Risk'           ║${NC}"
+        echo -e "  ${YELLOW}║                                                            ║${NC}"
+        echo -e "  ${YELLOW}║  To avoid the warning, use a domain name instead.          ║${NC}"
+        echo -e "  ${YELLOW}╚════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
         return 0
     fi
 
     if ! command -v certbot >/dev/null 2>&1; then
-        warn "certbot not installed. Using self-signed. Install: apt install certbot python3-certbot-nginx"
+        warn "certbot not installed. Using self-signed."
+        warn "To install later: apt install certbot python3-certbot-nginx && certbot --nginx -d ${HOSTNAME_INPUT}"
         return 0
     fi
 
-    log "Requesting Let's Encrypt (ACME) certificate for ${HOSTNAME_INPUT}..."
+    log "Requesting Let's Encrypt certificate for ${HOSTNAME_INPUT}..."
+    echo "  (This requires the domain to point to this server and port 80 to be open)"
 
-    # Certbot needs Nginx on port 80 and domain pointing to this server
+    # Certbot needs Nginx on port 80 and domain DNS pointing to this server
     CERTBOT_OUT=$(mktemp)
     certbot --nginx \
         -d "$HOSTNAME_INPUT" \
@@ -440,29 +528,50 @@ try_letsencrypt() {
         --redirect \
         > "$CERTBOT_OUT" 2>&1
     CERTBOT_EXIT=$?
+    cat "$CERTBOT_OUT" >> "$LOG_FILE" 2>/dev/null || true
     cat "$CERTBOT_OUT"
 
     LE_CERT="/etc/letsencrypt/live/${HOSTNAME_INPUT}/fullchain.pem"
     LE_KEY="/etc/letsencrypt/live/${HOSTNAME_INPUT}/privkey.pem"
 
     if [ $CERTBOT_EXIT -eq 0 ] && [ -f "$LE_CERT" ] && [ -f "$LE_KEY" ]; then
-        log "Let's Encrypt certificate obtained successfully."
+        log "Let's Encrypt certificate obtained successfully!"
+
+        # Update Nginx config to use Let's Encrypt certs
         if [ -d "/etc/nginx/sites-available" ]; then
             CONF_FILE="$NGINX_CONF"
         else
             CONF_FILE="$NGINX_CONF_D"
         fi
-        if [ -f "$CONF_FILE" ] && grep -q "ssl_certificate " "$CONF_FILE" 2>/dev/null; then
-            sed -i.bak "s|ssl_certificate *[^;]*;|ssl_certificate     ${LE_CERT};|g" "$CONF_FILE" 2>/dev/null || true
-            sed -i.bak "s|ssl_certificate_key *[^;]*;|ssl_certificate_key ${LE_KEY};|g" "$CONF_FILE" 2>/dev/null || true
+        if [ -f "$CONF_FILE" ] && grep -q "ssl_certificate" "$CONF_FILE" 2>/dev/null; then
+            sed -i.bak "s|ssl_certificate .*cert\.pem;|ssl_certificate     ${LE_CERT};|g" "$CONF_FILE" 2>/dev/null || true
+            sed -i.bak "s|ssl_certificate_key .*key\.pem;|ssl_certificate_key ${LE_KEY};|g" "$CONF_FILE" 2>/dev/null || true
+            log "Nginx config updated with Let's Encrypt paths."
         fi
-        nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || true
+
+        # Reload Nginx
+        if nginx -t 2>/dev/null; then
+            systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
+            log "Nginx reloaded with Let's Encrypt certificate."
+        else
+            warn "Nginx config test failed after LE update. Reverting..."
+            [ -f "${CONF_FILE}.bak" ] && cp "${CONF_FILE}.bak" "$CONF_FILE"
+            nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || true
+        fi
+
+        # Set up auto-renewal cron
+        if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
+            (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | crontab - 2>/dev/null || true
+            log "Auto-renewal cron job added (daily at 3 AM)."
+        fi
     else
-        warn "Let's Encrypt failed. Possible reasons:"
-        echo "  - Domain ${HOSTNAME_INPUT} does not point to this server's IP"
-        echo "  - Port 80 is blocked by firewall"
-        echo "  - Nginx is not listening on port 80"
-        echo "  Keeping self-signed certificate. Run later: certbot --nginx -d ${HOSTNAME_INPUT}"
+        warn "Let's Encrypt failed (exit code: ${CERTBOT_EXIT}). Possible causes:"
+        echo "  - Domain '${HOSTNAME_INPUT}' does not point to this server's IP (${SERVER_IP})"
+        echo "  - Port 80 is blocked by firewall or another service"
+        echo "  - DNS propagation has not completed yet"
+        echo ""
+        echo "  Keeping self-signed certificate (HTTPS still works, browser shows warning)."
+        echo "  Run later when DNS is ready: certbot --nginx -d ${HOSTNAME_INPUT}"
     fi
     rm -f "$CERTBOT_OUT"
 }
@@ -794,26 +903,40 @@ WRAPEOF
 # ───────── Summary ─────────
 print_summary() {
     echo ""
-    echo -e "${GREEN}======================================================${NC}"
-    echo -e "${GREEN}                                                      ${NC}"
-    echo -e "${GREEN}  Installation Complete!                               ${NC}"
-    echo -e "${GREEN}                                                      ${NC}"
-    echo -e "${GREEN}======================================================${NC}"
-    echo ""
-    echo -e "  ${BOLD}URL      :${NC} ${CYAN}https://${HOSTNAME_INPUT}${NC}"
-    echo -e "  ${BOLD}Username :${NC} ${GREEN}${PANEL_USER}${NC}"
-    echo -e "  ${BOLD}Password :${NC} ${GREEN}${PANEL_PASS}${NC}"
-    echo ""
-    echo -e "  ${BOLD}Commands:${NC}"
-    echo -e "    Status  : systemctl status ${SERVICE_NAME}"
-    echo -e "    Logs    : journalctl -u ${SERVICE_NAME} -f"
-    echo -e "    Restart : systemctl restart ${SERVICE_NAME}"
-    echo -e "    Remove  : bash ${APP_DIR}/uninstall.sh"
+    echo -e "${GREEN}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║                                                          ║${NC}"
+    echo -e "${GREEN}║       ✅  Installation Complete!                         ║${NC}"
+    echo -e "${GREEN}║                                                          ║${NC}"
+    echo -e "${GREEN}╠══════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${GREEN}║                                                          ║${NC}"
+    echo -e "${GREEN}║${NC}  ${BOLD}URL${NC}      : ${CYAN}https://${HOSTNAME_INPUT}${NC}"
+    echo -e "${GREEN}║${NC}  ${BOLD}Username${NC} : ${CYAN}${PANEL_USER}${NC}"
+    echo -e "${GREEN}║${NC}  ${BOLD}Password${NC} : ${CYAN}${PANEL_PASS}${NC}"
+    echo -e "${GREEN}║${NC}  ${BOLD}SSL${NC}      : ${CYAN}$([ "$USE_DOMAIN" = true ] && echo "Let's Encrypt (trusted)" || echo "Self-signed (encrypted)")${NC}"
+    echo -e "${GREEN}║                                                          ║${NC}"
+    echo -e "${GREEN}╠══════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${GREEN}║${NC}  ${BOLD}Management Commands:${NC}"
+    echo -e "${GREEN}║${NC}    Status  : ${CYAN}systemctl status ${SERVICE_NAME}${NC}"
+    echo -e "${GREEN}║${NC}    Logs    : ${CYAN}journalctl -u ${SERVICE_NAME} -f${NC}"
+    echo -e "${GREEN}║${NC}    Restart : ${CYAN}systemctl restart ${SERVICE_NAME}${NC}"
+    echo -e "${GREEN}║${NC}    Remove  : ${CYAN}bash ${APP_DIR}/uninstall.sh${NC}"
+    echo -e "${GREEN}║                                                          ║${NC}"
+    echo -e "${GREEN}╚══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
     if [ "$USE_DOMAIN" = false ]; then
-        echo -e "${YELLOW}  NOTE: Self-signed SSL - browser will show warning.${NC}"
-        echo -e "${YELLOW}  Click 'Advanced' then 'Proceed' to continue.${NC}"
+        echo -e "  ${YELLOW}┌─────────────────────────────────────────────────────┐${NC}"
+        echo -e "  ${YELLOW}│  IP-based SSL: Connection is encrypted (HTTPS).     │${NC}"
+        echo -e "  ${YELLOW}│  Browser will show a security warning — this is     │${NC}"
+        echo -e "  ${YELLOW}│  NORMAL and expected for IP-based certificates.     │${NC}"
+        echo -e "  ${YELLOW}│                                                     │${NC}"
+        echo -e "  ${YELLOW}│  → Chrome : 'Advanced' → 'Proceed to ${HOSTNAME_INPUT}'${NC}"
+        echo -e "  ${YELLOW}│  → Firefox: 'Advanced' → 'Accept the Risk'         │${NC}"
+        echo -e "  ${YELLOW}│                                                     │${NC}"
+        echo -e "  ${YELLOW}│  To remove the warning, point a domain to this      │${NC}"
+        echo -e "  ${YELLOW}│  server and reinstall, or run:                      │${NC}"
+        echo -e "  ${YELLOW}│  certbot --nginx -d yourdomain.com                  │${NC}"
+        echo -e "  ${YELLOW}└─────────────────────────────────────────────────────┘${NC}"
         echo ""
     fi
 
