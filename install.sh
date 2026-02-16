@@ -206,11 +206,11 @@ get_user_input() {
 
     echo ""
     echo -e "${BOLD}-- Summary --${NC}"
-    echo -e "  Username : ${GREEN}${PANEL_USER}${NC}"
-    echo -e "  Password : ${GREEN}****${NC}"
-    echo -e "  Address  : ${GREEN}${HOSTNAME_INPUT}${NC}"
-    echo -e "  Backend  : ${GREEN}127.0.0.1:${APP_PORT}${NC}"
-    echo -e "  Domain   : ${GREEN}${USE_DOMAIN}${NC}"
+    echo -e "  Panel URL : ${GREEN}https://${HOSTNAME_INPUT}${NC} (port 443, SSL)"
+    echo -e "  Username  : ${GREEN}${PANEL_USER}${NC}"
+    echo -e "  Password  : ${GREEN}****${NC}"
+    echo -e "  Backend   : ${GREEN}127.0.0.1:${APP_PORT}${NC} (internal, Nginx proxies to this)"
+    echo -e "  Mode      : ${GREEN}$([ "$USE_DOMAIN" = true ] && echo "Domain" || echo "IP address")${NC}"
     echo ""
     read -rp "$(echo -e "${YELLOW}Continue? [Y/n]: ${NC}")" CONFIRM
     case "$CONFIRM" in
@@ -699,6 +699,32 @@ SSLCNF
     rm -f "$OPENSSL_CNF"
 }
 
+# ───────── Install acme.sh (for IP SSL / ACME) ─────────
+# Must run as root; installs to /root/.acme.sh so cdn-scanner-manage ssl always finds it.
+install_acme_sh() {
+    export HOME=/root
+    ACME_SH="/root/.acme.sh/acme.sh"
+    if [ -f "$ACME_SH" ]; then
+        log "acme.sh already installed: $ACME_SH"
+        return 0
+    fi
+    echo -e "  ${BLUE}Installing acme.sh for ACME/Let's Encrypt (IP SSL)...${NC}"
+    if ! curl -sL https://get.acme.sh | sh -s -- --register-unsafely-without-email 2>>"$LOG_FILE"; then
+        warn "acme.sh install script returned error (check log)"
+    fi
+    if [ ! -f "$ACME_SH" ]; then
+        # Retry without suppressing output
+        echo -e "  ${YELLOW}Retrying acme.sh install (showing output)...${NC}"
+        curl -sL https://get.acme.sh | sh -s -- --register-unsafely-without-email 2>&1 | tee -a "$LOG_FILE" || true
+    fi
+    if [ -f "$ACME_SH" ]; then
+        log "acme.sh installed: $ACME_SH"
+        return 0
+    fi
+    err "acme.sh installation failed. SSL on IP may use self-signed only."
+    return 1
+}
+
 # ───────── ACME (Let's Encrypt) for IP address ─────────
 # Let's Encrypt now supports IP certificates (short-lived, ~6 days). Uses acme.sh.
 try_acme_ip() {
@@ -706,16 +732,11 @@ try_acme_ip() {
     echo -e "    (Requires: public IP, port 80 open from internet)"
     echo ""
 
-    # Install acme.sh if missing
+    export HOME=/root
     ACME_SH="/root/.acme.sh/acme.sh"
     if [ ! -f "$ACME_SH" ]; then
         echo -e "    ${BLUE}Installing acme.sh...${NC}"
-        curl -s https://get.acme.sh | sh -s -- --register-unsafely-without-email 2>>"$LOG_FILE" | tail -5 || true
-        if [ ! -f "$ACME_SH" ]; then
-            warn "acme.sh installation failed. Using self-signed certificate."
-            return 1
-        fi
-        echo -e "    ${GREEN}acme.sh installed ✔${NC}"
+        install_acme_sh || return 1
     fi
 
     # Ensure webroot exists and is writable
@@ -1773,28 +1794,38 @@ cmd_ssl() {
         systemctl reload nginx 2>/dev/null || true
         echo -e "  ${GREEN}Done.${NC}"
     else
-        echo -e "  ${BLUE}IP mode: trying Let's Encrypt IP certificate (acme.sh)...${NC}"
+        echo -e "  ${BLUE}IP mode: Let's Encrypt IP certificate (acme.sh)...${NC}"
+        export HOME=/root
         ACME_SH="/root/.acme.sh/acme.sh"
         if [ ! -f "$ACME_SH" ]; then
-            echo -e "  ${YELLOW}acme.sh not found. Install: curl https://get.acme.sh | sh${NC}"
-            exit 1
+            echo -e "  ${YELLOW}acme.sh not found. Installing now...${NC}"
+            if ! curl -sL https://get.acme.sh | sh -s -- --register-unsafely-without-email; then
+                echo -e "  ${RED}acme.sh installation failed.${NC}"
+                exit 1
+            fi
+            if [ ! -f "$ACME_SH" ]; then
+                echo -e "  ${RED}acme.sh still not found at $ACME_SH${NC}"
+                exit 1
+            fi
+            echo -e "  ${GREEN}acme.sh installed.${NC}"
         fi
         mkdir -p "${ACME_CHALLENGE_DIR}/.well-known/acme-challenge"
         chown -R www-data:www-data "$ACME_CHALLENGE_DIR" 2>/dev/null || chown -R nginx:nginx "$ACME_CHALLENGE_DIR" 2>/dev/null || true
-        "$ACME_SH" --issue -d "$HOSTNAME_INPUT" \
+        chmod -R 755 "$ACME_CHALLENGE_DIR"
+        export HOME=/root
+        if "$ACME_SH" --issue -d "$HOSTNAME_INPUT" \
             --webroot "$ACME_CHALLENGE_DIR" \
             --server letsencrypt \
             --certificate-profile shortlived \
             --days 5 \
-            --force
-        if [ $? -eq 0 ]; then
+            --force; then
             "$ACME_SH" --install-cert -d "$HOSTNAME_INPUT" \
                 --key-file "${SSL_DIR}/key.pem" \
                 --fullchain-file "${SSL_DIR}/cert.pem" \
                 --reloadcmd "systemctl reload nginx"
             chmod 644 "${SSL_DIR}/cert.pem"
             chmod 600 "${SSL_DIR}/key.pem"
-            systemctl reload nginx
+            systemctl reload nginx 2>/dev/null || true
             echo -e "  ${GREEN}SSL certificate renewed successfully.${NC}"
         else
             echo -e "  ${YELLOW}Renewal failed. Ensure port 80 is open from the internet.${NC}"
@@ -1849,7 +1880,7 @@ print_summary() {
     echo -e "${GREEN}║                                                          ║${NC}"
     echo -e "${GREEN}╠══════════════════════════════════════════════════════════╣${NC}"
     echo -e "${GREEN}║                                                          ║${NC}"
-    echo -e "${GREEN}║${NC}  ${BOLD}URL${NC}      : ${CYAN}https://${HOSTNAME_INPUT}${NC}"
+    echo -e "${GREEN}║${NC}  ${BOLD}Panel URL${NC} : ${CYAN}https://${HOSTNAME_INPUT}${NC} (port 443, SSL)"
     echo -e "${GREEN}║${NC}  ${BOLD}Username${NC} : ${CYAN}${PANEL_USER}${NC}"
     echo -e "${GREEN}║${NC}  ${BOLD}Password${NC} : ${CYAN}${PANEL_PASS}${NC}"
     echo -e "${GREEN}║${NC}  ${BOLD}SSL${NC}      : ${CYAN}$([ "$USE_DOMAIN" = true ] && echo "Let's Encrypt (trusted)" || echo "Self-signed (encrypted)")${NC}"
@@ -1930,6 +1961,18 @@ main() {
     configure_firewall
     set_permissions
     start_service
+
+    # IP mode: install acme.sh so SSL renewal (cdn-scanner-manage ssl) always works
+    if [ "$USE_DOMAIN" != true ]; then
+        echo ""
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${BOLD}  Installing acme.sh (for SSL on IP)${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+        install_acme_sh || true
+        echo ""
+    fi
+
     try_letsencrypt
     create_uninstaller
     write_install_config
