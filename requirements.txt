@@ -1,0 +1,30 @@
+# CDN IP Scanner V2.0 - Linux Dependencies
+# All packages needed for full operation on Linux
+
+# Core web framework
+Flask>=3.0.0
+flask-sqlalchemy>=3.1.0
+flask-socketio>=5.3.0
+
+# WebSocket transport
+gevent>=24.2.1
+gevent-websocket>=0.10.1
+
+# HTTP requests (scanning, range fetching, operator data)
+requests>=2.31.0
+urllib3>=2.0.0
+
+# Database (SQLite built-in; PyMySQL for optional MySQL/MariaDB)
+PyMySQL>=1.1.0
+
+# Environment variable loading
+python-dotenv>=1.0.0
+
+# Excel export
+openpyxl>=3.1.0
+
+# SSL/TLS support (usually system-provided, but ensure available)
+certifi>=2024.2.2
+
+# Eventlet alternative (gevent preferred)
+# eventlet>=0.35.0
