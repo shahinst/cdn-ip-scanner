@@ -1,5 +1,5 @@
 """
-SH IP Scanner V2.0 - AI Optimizer
+CDN IP Scanner V2.0 - AI Optimizer
 Author: shahinst
 """
 
