@@ -1,5 +1,5 @@
 """
-SH IP Scanner V2.0 - Configuration (Linux Edition)
+CDN IP Scanner V2.0 - Configuration (Linux Edition)
 Author: shahinst
 
 Linux-optimized: defaults to SQLite (no external DB required).
