@@ -1,5 +1,5 @@
 """
-SH IP Scanner V2.0 - Main Routes
+CDN IP Scanner V2.0 - Main Routes
 Author: shahinst
 """
 
