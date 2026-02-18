@@ -191,21 +191,36 @@ class SHScanner:
         """
         5 sequential HTTP requests to /cdn-cgi/trace with connection reuse.
 
-        Speed optimizations:
-          - requests.Session for TCP+TLS connection reuse (3x faster)
-          - Per-request timeout capped at 2.5s
-          - Total time per IP capped at 8s (prevents slow IPs from blocking workers)
-          - After 1st timeout → abort all subsequent (AbortController behavior)
+        FIX 1: multiply حالا برای latency بالا هم مقدار مناسب داره —
+                قبلاً وقتی ping_max=9999 بود، multiply=1.0 میشد و timeout
+                per-request فقط ~1 ثانیه بود که خیلی کمه.
+
+        FIX 2: max_total_sec حداقل 8 ثانیه — قبلاً با ping_max پایین
+                ممکن بود خیلی کوتاه بشه.
 
         Returns (is_valid: bool, avg_latency_ms: float).
         """
         url = _sh_trace_url(ip_str, port)
 
-        multiply = 1.5 if max_latency_ms <= 500 else (1.2 if max_latency_ms <= 1000 else 1.0)
+        # FIX 1: multiply اصلاح شد — مقدار بیشتر = timeout بیشتر per request
+        # قبلاً: 1.5 برای <=500، 1.2 برای <=1000، 1.0 برای بقیه (اشتباه)
+        # الان: برای مقادیر بالا (مثل 9999) هم timeout کافی داره
+        if max_latency_ms <= 300:
+            multiply = 2.0
+        elif max_latency_ms <= 500:
+            multiply = 1.8
+        elif max_latency_ms <= 1000:
+            multiply = 1.5
+        elif max_latency_ms <= 3000:
+            multiply = 1.2
+        else:
+            # ping_max بالا (مثلاً 9999) — از timeout ثابت 3 ثانیه استفاده کن
+            multiply = 1.0
+
         timeout_factors = [1.5, 1.2, 1.0, 1.0, 1.0]
 
-        # Absolute max time per IP: prevents slow IPs from blocking workers
-        max_total_sec = min(8.0, max_latency_ms * 3.0 / 1000.0)
+        # FIX 2: حداقل 8 ثانیه total — قبلاً با ping_max کم خیلی کوتاه میشد
+        max_total_sec = max(8.0, min(15.0, max_latency_ms * 3.0 / 1000.0))
 
         total_start = time.time()
         successes = 0
@@ -228,9 +243,15 @@ class SHScanner:
                 if time.time() - total_start > max_total_sec:
                     break
 
-                # Per-request timeout: capped at 2.5s for speed
-                raw_timeout = timeout_factors[i] * multiply * max_latency_ms / 1000.0
-                timeout_sec = min(2.5, max(0.5, raw_timeout))
+                # FIX 3: per-request timeout — حداقل 1.5s، حداکثر 4s
+                # قبلاً حداکثر 2.5s بود که برای شبکه‌های کند کافی نبود
+                if max_latency_ms > 3000:
+                    # برای ping_max خیلی بالا (9999): timeout ثابت 3 ثانیه
+                    timeout_sec = 3.0
+                else:
+                    raw_timeout = timeout_factors[i] * multiply * max_latency_ms / 1000.0
+                    timeout_sec = min(4.0, max(1.5, raw_timeout))
+
                 try:
                     r = session.get(url, timeout=timeout_sec, allow_redirects=False)
                     successes += 1
@@ -266,10 +287,14 @@ class SHScanner:
     def check(self, ip, ports):
         """
         Check a single IP:
-        1. Quick TCP pre-filter (1.5s) → rejects 90%+ of dead IPs FAST
+        1. Quick TCP pre-filter → rejects dead IPs FAST
         2. If TCP passes → 5-sequential /cdn-cgi/trace verification
         3. If valid → quick TCP check on remaining ports
         4. Returns result dict or None
+
+        FIX 4: TCP pre-filter timeout از 1.0s به 2.5s افزایش یافت.
+                قبلاً روی سرورهای ایران/روسیه/چین که latency بالاست،
+                IP های معتبر هم رد میشدن چون 1 ثانیه کافی نبود.
         """
         if self._stop_flag:
             return None
@@ -279,10 +304,11 @@ class SHScanner:
 
         primary_port = ports[0] if ports else 443
 
-        # FAST PRE-FILTER: Quick TCP connect (1.0s timeout)
-        # Eliminates 90%+ of dead IPs in <1s instead of waiting 3s for HTTP timeout
-        # Valid CDN IPs have TCP connect <500ms; 1s is generous
-        if not self._tcp_connect(ip_str, primary_port, 1.0):
+        # FIX 4: TCP timeout افزایش یافت: 1.0s → 2.5s
+        # دلیل: روی شبکه‌های با latency بالا (ایران، روسیه، چین)
+        # IP های معتبر CDN هم ممکنه TCP connect > 1s داشته باشن
+        tcp_prefilter_timeout = min(2.5, max(1.5, self.max_latency_ms / 1000.0 * 0.5))
+        if not self._tcp_connect(ip_str, primary_port, tcp_prefilter_timeout):
             self.failed_cache.add(ip_str)
             return None
 
@@ -300,7 +326,7 @@ class SHScanner:
         result['open_ports'].append(primary_port)
 
         # Quick TCP scan on remaining ports
-        tcp_timeout = min(2.0, self.max_latency_ms / 1000.0)
+        tcp_timeout = min(3.0, max(1.5, self.max_latency_ms / 1000.0))
         for port in ports[1:]:
             if self._stop_flag:
                 break
