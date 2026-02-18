@@ -293,24 +293,17 @@ def start_scan():
                     _emit_log('INFO', f'V2Ray config parsed: {v2ray_parsed["protocol"]}', sess_id)
 
                 # Build IPs from ranges using /24-splitting mechanism
-                # For each CIDR: split to /24 blocks → random IPs per block → shuffle
                 mode_cfg = SPEED_MODES.get(mode, SPEED_MODES['hyper'])
                 ips_per_24 = mode_cfg.get('ips_per_24', 30)
                 scan_ranges = list(ranges_input) if ranges_input else []
 
                 if scan_method == 'operators':
-                    # با رنج آی‌پی اپراتورها: فقط آی‌پی‌های CDN اسکن می‌شوند (نه رنج اپراتورها).
-                    # چک می‌شود هر آی‌پی CDN روی اپراتور انتخاب‌شده پینگ و پورت دارد یا نه.
-                    # رنج‌های اپراتور (ایرانسل، همراه اول، ...) فقط برای نمایش نام اپراتور استفاده می‌شوند.
                     if not scan_ranges:
-                        _emit_log('INFO', 'Operator mode: fetching CDN IP ranges (not operator ranges)...', sess_id)
+                        _emit_log('INFO', 'Operator mode: fetching CDN IP ranges...', sess_id)
                         try:
-                            scan_ranges = RangeFetcher.get_vfarid_cdn_ranges()
-                            if scan_ranges:
-                                _emit_log('INFO', f'Fetched {len(scan_ranges)} CDN ranges (vfarid)', sess_id)
-                            else:
-                                scan_ranges = RangeFetcher.fetch_by_source('all')
-                                _emit_log('INFO', f'Fetched {len(scan_ranges)} CDN ranges (official)', sess_id)
+                            # فقط از منابع رسمی
+                            scan_ranges = RangeFetcher.fetch_by_source('all')
+                            _emit_log('INFO', f'Fetched {len(scan_ranges)} CDN ranges (official)', sess_id)
                         except Exception as e:
                             _emit_log('ERROR', f'Failed to fetch CDN ranges: {e}', sess_id)
                     else:
@@ -318,14 +311,13 @@ def start_scan():
                     if not scan_ranges:
                         _emit_log('WARN', 'No CDN ranges. Paste CDN ranges or click Fetch Ranges.', sess_id)
 
-                # Batch size per round; we'll keep scanning until found >= target_count
+                # Batch size per round
                 batch_size = max(target_count * 100, 5000) if target_count else 100000
                 max_total_scanned = 500000  # safety: stop after 500k IPs tried
                 total_scanned = 0
 
                 found = 0
 
-                # Progress: show % toward target (found/target_count) so user sees goal
                 def on_progress(done, total_ips, speed=0, elapsed=0):
                     nonlocal total_scanned
                     if target_count and target_count > 0:
@@ -338,8 +330,6 @@ def start_scan():
                         'elapsed': round(elapsed, 1), 'session_id': sess_id,
                     }, namespace='/')
 
-                # اپراتور فقط از انتخاب کاربر (از لیست اپراتورهای همان کشور). از IP لوکال استفاده نمی‌شود.
-                # وقتی "دریافت همه آی‌پی‌های اپراتورها" زده شده، رنج‌ها از RIPE/BGP برای همه اپراتورهای آن کشور گرفته می‌شود.
                 _session_operator_name = ''
                 if scan_method in ('operators', 'v2ray'):
                     if operator_key:
@@ -360,7 +350,6 @@ def start_scan():
 
                 _emit_log('INFO', f'Target: {target_count or "unlimited"} — scan will run until target reached or max IPs tried', sess_id)
 
-                # Emit each result the moment it is found (real-time table update)
                 def on_result(result):
                     nonlocal found
                     if target_count and found >= target_count:
@@ -402,7 +391,6 @@ def start_scan():
                     except Exception:
                         db.session.rollback()
 
-                # Run scan in batches until we reach target_count or exhaust max_total_scanned
                 batch_num = 0
                 global _user_stop_requested
                 _user_stop_requested = False
@@ -454,7 +442,6 @@ def start_scan():
                         _emit_log('INFO', f'Target reached: {found} IPs found.', sess_id)
                         break
                     if not target_count:
-                        # No target (unlimited): one batch only
                         break
                     if _user_stop_requested:
                         _emit_log('INFO', 'Scan stopped by user.', sess_id)
@@ -547,7 +534,6 @@ def get_logs():
 
 # ========== Export ==========
 
-# Excel/Text export headers by language (standard table columns)
 EXPORT_HEADERS = {
     'fa': ('رتبه', 'آدرس IP', 'Ping', 'پورت\u200cها', 'امتیاز', 'اپراتور'),
     'en': ('#', 'IP', 'Ping', 'Ports', 'Score', 'Operator'),
@@ -571,7 +557,6 @@ def export_results(fmt):
         return Response(output, mimetype='application/json',
                         headers={'Content-Disposition': 'attachment;filename=scan_results.json'})
     elif fmt == 'txt':
-        # Only IPs, one per line (column-style)
         lines = [r.ip for r in results]
         return Response('\n'.join(lines), mimetype='text/plain',
                         headers={'Content-Disposition': 'attachment;filename=scan_ips.txt'})
@@ -648,7 +633,6 @@ def check_update():
         if not remote_version:
             return jsonify({'error': 'Empty version file'}), 200
 
-        # Compare versions (simple string/numeric compare)
         def parse_ver(v):
             parts = []
             for p in v.replace('-', '.').split('.'):
@@ -681,28 +665,22 @@ def do_update():
     base_dir = current_app.config.get('BASE_DIR', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
     try:
-        # Check if git is available and this is a git repo
         git_check = subprocess.run(['git', 'status'], cwd=base_dir,
                                    capture_output=True, text=True, timeout=10)
         if git_check.returncode != 0:
-            # Not a git repo - try git clone approach
             return jsonify({'error': 'Not a git repository. Please install via git clone.'}), 200
 
-        # Pull latest changes
         pull_result = subprocess.run(['git', 'pull', 'origin', 'main'], cwd=base_dir,
                                      capture_output=True, text=True, timeout=60)
         if pull_result.returncode != 0:
-            # Try with --rebase
             pull_result = subprocess.run(['git', 'pull', '--rebase', 'origin', 'main'], cwd=base_dir,
                                          capture_output=True, text=True, timeout=60)
 
-        # Install updated dependencies
         req_file = os.path.join(base_dir, 'requirements.txt')
         if os.path.exists(req_file):
             subprocess.run([sys.executable, '-m', 'pip', 'install', '-r', req_file, '-q'],
                           cwd=base_dir, capture_output=True, text=True, timeout=120)
 
-        # Schedule restart in a background thread
         def restart_app():
             import time as _time
             _time.sleep(2)
