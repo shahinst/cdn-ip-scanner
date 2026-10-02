@@ -1,1 +1,16 @@
+# Release bundles
 ScannerPro_exe.zip
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtual environments
+venv/
+.venv/
+
+# Local data / secrets
+data/
+.env
+*.log

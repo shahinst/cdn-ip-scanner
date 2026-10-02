@@ -1409,8 +1409,10 @@ set_permissions() {
     chmod 600 "$APP_DIR/.env"
     echo -e " ${GREEN}✔${NC}"
 
-    printf "    %-40s" "${APP_DIR}/data/ → 777 (writable)"
-    chmod 777 "$APP_DIR/data" 2>/dev/null || true
+    # The service runs as root, so the data dir (DB + secret key) only needs to be root-accessible
+    printf "    %-40s" "${APP_DIR}/data/ → 700 (private)"
+    mkdir -p "$APP_DIR/data"
+    chmod 700 "$APP_DIR/data" 2>/dev/null || true
     echo -e " ${GREEN}✔${NC}"
 
     printf "    %-40s" "SSL key → 600 (private)"

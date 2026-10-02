@@ -1,21 +1,20 @@
 """
-SH IP Scanner V2.0 - V2Ray Config Parser & Scanner
+CDN IP Scanner V2.0 - V2Ray Config Parser & Scanner
 Author: shahinst
 
 Parses vless:// (and vmess://, trojan://) configs,
-replaces the IP for each scan target, then tests latency
-through each operator's network.
+replaces the IP for each scan target, then checks that a real CDN edge
+answers for the config's host on that IP (latency is measured from the
+machine running the scanner).
 """
 
-import re
+import ssl
 import time
 import socket
-import requests
-import urllib3
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
+from urllib.parse import parse_qs, urlencode
+from concurrent.futures import ThreadPoolExecutor
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+from app.scanner.core import is_cdn_response, iter_completed, HTTPS_PORTS
 
 
 class V2RayConfigParser:
@@ -188,54 +187,77 @@ class V2RayConfigParser:
         return None
 
     @staticmethod
+    def _parse_http_response(raw):
+        """Split a raw HTTP response into (status_code, lowercase headers dict, body)."""
+        head, _, body = raw.partition('\r\n\r\n')
+        lines = head.split('\r\n')
+        parts = lines[0].split(' ', 2) if lines else []
+        if len(parts) < 2 or not parts[0].startswith('HTTP/') or not parts[1].isdigit():
+            return None, {}, ''
+        headers = {}
+        for line in lines[1:]:
+            if ':' in line:
+                k, v = line.split(':', 1)
+                headers[k.strip().lower()] = v.strip()
+        return int(parts[1]), headers, body
+
+    @staticmethod
+    def _recv_head(sock, limit=8192):
+        """Read until the end of the HTTP headers (or `limit` bytes / EOF)."""
+        data = b''
+        while b'\r\n\r\n' not in data and len(data) < limit:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+        return data.decode('utf-8', errors='ignore')
+
+    @staticmethod
     def test_ip_with_config(parsed, test_ip, timeout=5):
         """
-        Test a single IP by replacing it in config and checking connectivity.
-        For vless/trojan with TLS+WS: try HTTPS connection to the host/sni.
+        Test a single IP with the config's TLS SNI / HTTP Host: connect to the IP,
+        request /cdn-cgi/trace for the config's host and require a real CDN edge
+        response (a bare TCP/TLS handshake is not enough).
         Returns (success: bool, latency_ms: float or None).
         """
         if not parsed:
             return False, None
 
         port = parsed['port']
-        params = parsed.get('params', {})
+        params = parsed.get('params', {}) or {}
         sni = params.get('sni', '') or params.get('host', '') or ''
+        host_header = params.get('host', '') or sni or test_ip
+        # vless/trojan use `security=tls`, vmess JSON uses `tls: "tls"`
+        security = (params.get('security') or params.get('tls') or '').lower()
+        use_tls = security == 'tls' or (not security and port in HTTPS_PORTS)
 
         start = time.time()
+        sock = None
         try:
-            # Try TLS connection with SNI
-            if params.get('security') == 'tls' or port in (443, 8443, 2053, 2083, 2087, 2096):
-                import ssl
+            sock = socket.create_connection((test_ip, port), timeout=timeout)
+            if use_tls:
                 context = ssl.create_default_context()
                 context.check_hostname = False
                 context.verify_mode = ssl.CERT_NONE
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(timeout)
-                wrapped = context.wrap_socket(sock, server_hostname=sni or test_ip)
-                wrapped.connect((test_ip, port))
-                latency = (time.time() - start) * 1000
+                sock = context.wrap_socket(sock, server_hostname=sni or None)
+            latency = (time.time() - start) * 1000
 
-                # Try HTTP request through the connection
-                host_header = sni or test_ip
-                request = f"GET /cdn-cgi/trace HTTP/1.1\r\nHost: {host_header}\r\nConnection: close\r\n\r\n"
-                wrapped.sendall(request.encode())
-                response = wrapped.recv(4096).decode('utf-8', errors='ignore')
-                wrapped.close()
-
-                if '200' in response.split('\r\n')[0] or 'fl=' in response:
-                    return True, latency
-                # Even if trace fails, connection succeeded
-                return True, latency
-            else:
-                # Plain TCP for non-TLS
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(timeout)
-                sock.connect((test_ip, port))
-                latency = (time.time() - start) * 1000
-                sock.close()
-                return True, latency
+            request = (f"GET /cdn-cgi/trace HTTP/1.1\r\nHost: {host_header}\r\n"
+                       "User-Agent: Mozilla/5.0\r\nConnection: close\r\n\r\n")
+            sock.sendall(request.encode())
+            status, headers, body = V2RayConfigParser._parse_http_response(
+                V2RayConfigParser._recv_head(sock))
+            if status is None or not is_cdn_response(headers, body):
+                return False, None
+            return True, latency
         except Exception:
             return False, None
+        finally:
+            if sock is not None:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
 
 
 class V2RayScanner:
@@ -270,7 +292,8 @@ class V2RayScanner:
 
         self._log('INFO', f'V2Ray scan started: {total} IPs, config={parsed_config["protocol"]}')
 
-        with ThreadPoolExecutor(max_workers=self.max_workers) as ex:
+        ex = ThreadPoolExecutor(max_workers=self.max_workers)
+        try:
             futures = {}
             for ip in ip_list:
                 if self._stop_flag:
@@ -279,22 +302,7 @@ class V2RayScanner:
                 futures[f] = str(ip)
 
             completed = 0
-            wait_timeout = 2.0
-            it = as_completed(futures, timeout=wait_timeout)
-            while True:
-                if self._stop_flag:
-                    for f in futures:
-                        try:
-                            f.cancel()
-                        except Exception:
-                            pass
-                    break
-                try:
-                    future = next(it)
-                except StopIteration:
-                    break
-                except FuturesTimeoutError:
-                    continue
+            for future in iter_completed(futures, lambda: self._stop_flag):
                 completed += 1
                 ip_str = futures[future]
                 try:
@@ -321,6 +329,8 @@ class V2RayScanner:
                         progress_callback(completed, total)
                     except Exception:
                         pass
+        finally:
+            ex.shutdown(wait=not self._stop_flag, cancel_futures=True)
 
         self._log('INFO', f'V2Ray scan completed: {len(results)}/{total} successful')
         return results
