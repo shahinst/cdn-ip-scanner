@@ -86,7 +86,8 @@ def iter_completed(futures, should_stop, poll_interval=2.0):
 def _sh_trace_url(ip_str, port):
     """Build URL for /cdn-cgi/trace based on port."""
     scheme = "https" if port in HTTPS_PORTS else "http"
-    return f"{scheme}://{ip_str}:{port}{SH_TRACE_PATH}"
+    host = f"[{ip_str}]" if ':' in ip_str else ip_str  # IPv6 literal
+    return f"{scheme}://{host}:{port}{SH_TRACE_PATH}"
 
 
 # Speed mode resource allocation
@@ -98,16 +99,24 @@ SPEED_MODES = {
 }
 
 
+# IPv6 ranges are far too large to enumerate: they are sampled through random
+# aligned blocks of this size (the IPv6 equivalent of a /24).
+IPV6_BLOCK_PREFIX = 120
+IPV6_MAX_BLOCKS = 4096
+
+
 class SHNetUtils:
     """
     Network utilities for CIDR splitting and random IP generation.
     Uses round-robin to guarantee ALL provided ranges are represented.
+    IPv4 ranges are split into /24 blocks ('a.b.c' strings); IPv6 ranges into
+    random /120 blocks (ints of the block's first address).
     """
 
     @staticmethod
     def split_to_24_blocks(cidr_str):
         """
-        Split any CIDR range into /24 block prefixes.
+        Split any IPv4 CIDR range into /24 block prefixes.
         Returns list of prefix strings like '104.16.0', '104.16.1', etc.
         """
         try:
@@ -134,14 +143,36 @@ class SHNetUtils:
             return []
 
     @staticmethod
-    def random_ips_from_block(prefix_24, count=30):
+    def ipv6_blocks(cidr_str, count):
+        """Up to `count` distinct random /120 blocks (as ints) inside an IPv6 CIDR."""
+        try:
+            net = ipaddress.IPv6Network(cidr_str, strict=False)
+        except ValueError:
+            return []
+        if net.prefixlen >= IPV6_BLOCK_PREFIX:
+            return [int(net.network_address)]
+        n_blocks = 1 << (IPV6_BLOCK_PREFIX - net.prefixlen)
+        count = min(count, n_blocks)
+        base = int(net.network_address)
+        if n_blocks <= count * 2:
+            picks = random.sample(range(n_blocks), count)
+        else:
+            picks = set()
+            while len(picks) < count:
+                picks.add(random.randrange(n_blocks))
+        return [base + (i << (128 - IPV6_BLOCK_PREFIX)) for i in picks]
+
+    @staticmethod
+    def random_ips_from_block(block, count=30):
         """
-        Generate unique random IPs from a /24 block.
-        IPs range from .1 to .254 (skipping .0 and .255).
+        Generate unique random IPs from a /24 block ('a.b.c') or an IPv6 /120 block (int).
+        Host numbers range from 1 to 254 (skipping .0 and .255).
         """
         count = min(count, 254)
         numbers = random.sample(range(1, 255), count)
-        return [f"{prefix_24}.{n}" for n in numbers]
+        if isinstance(block, int):
+            return [str(ipaddress.IPv6Address(block + n)) for n in numbers]
+        return [f"{block}.{n}" for n in numbers]
 
     @staticmethod
     def generate_scan_ips(cidr_list, per_block=30, max_total=None, shuffle=True):
@@ -158,6 +189,8 @@ class SHNetUtils:
         """
         single_ips = []
         range_block_lists = []  # List of shuffled block lists, one per range
+        v6_count = (max_total // max(per_block, 1) + 1) if max_total else IPV6_MAX_BLOCKS
+        v6_count = min(v6_count, IPV6_MAX_BLOCKS)
 
         for cidr in cidr_list:
             cidr = str(cidr).strip()
@@ -166,9 +199,12 @@ class SHNetUtils:
             if '/' not in cidr:
                 single_ips.append(cidr)
                 continue
-            blocks = SHNetUtils.split_to_24_blocks(cidr)
-            if blocks:
+            if ':' in cidr:
+                blocks = SHNetUtils.ipv6_blocks(cidr, v6_count)  # already random
+            else:
+                blocks = SHNetUtils.split_to_24_blocks(cidr)
                 random.shuffle(blocks)  # Shuffle blocks within each range
+            if blocks:
                 range_block_lists.append(blocks)
 
         if not range_block_lists and not single_ips:
@@ -189,8 +225,8 @@ class SHNetUtils:
 
         # Generate random IPs from selected blocks
         all_ips = list(single_ips)
-        for prefix in selected_blocks:
-            all_ips.extend(SHNetUtils.random_ips_from_block(prefix, per_block))
+        for block in selected_blocks:
+            all_ips.extend(SHNetUtils.random_ips_from_block(block, per_block))
 
         if shuffle:
             random.shuffle(all_ips)
@@ -337,9 +373,7 @@ class SHScanner:
     def _tcp_connect(self, ip_str, port, timeout_sec):
         """Quick TCP connect to check if port is open."""
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(timeout_sec)
-            sock.connect((ip_str, port))
+            sock = socket.create_connection((ip_str, port), timeout=timeout_sec)  # IPv4 or IPv6
             sock.close()
             return True
         except Exception:
