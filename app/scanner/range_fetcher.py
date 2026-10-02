@@ -79,13 +79,13 @@ def _robust_get(url, timeout=FETCH_TIMEOUT, verify=True, retries=FETCH_RETRIES):
     )
 
 
-def normalize_ipv4_ranges(ranges):
-    """Keep only valid IPv4 CIDRs/addresses (canonical form, deduplicated, order kept)."""
+def normalize_ip_ranges(ranges):
+    """Keep only valid IPv4/IPv6 CIDRs/addresses (canonical form, deduplicated, order kept)."""
     out = []
     seen = set()
     for r in ranges or []:
         try:
-            net = ipaddress.IPv4Network(str(r).strip(), strict=False)
+            net = ipaddress.ip_network(str(r).strip(), strict=False)
         except (ValueError, TypeError):
             continue
         key = str(net)
@@ -346,6 +346,24 @@ class RangeFetcher:
             logger.error("Cloudflare official fetch failed: %s", e)
             return []
 
+    # Cloudflare's published IPv6 ranges (https://www.cloudflare.com/ips-v6/)
+    CLOUDFLARE_IPV6 = [
+        '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32',
+        '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32',
+    ]
+
+    @staticmethod
+    def get_cloudflare_ipv6():
+        """Cloudflare IPv6 ranges from the official API, built-in list as fallback."""
+        try:
+            r = _robust_get('https://api.cloudflare.com/client/v4/ips')
+            ranges = r.json().get('result', {}).get('ipv6_cidrs', [])
+            if ranges:
+                return ranges
+        except Exception as e:
+            logger.error("Cloudflare IPv6 fetch failed: %s", e)
+        return list(RangeFetcher.CLOUDFLARE_IPV6)
+
     @staticmethod
     def get_cloudflare_asn():
         return [
@@ -420,10 +438,11 @@ class RangeFetcher:
             'fastly_api': RangeFetcher.get_fastly_official,
             'fastly_asn': RangeFetcher.get_fastly_asn,
             'builtin': RangeFetcher.get_builtin_ranges,
+            'sh_ipv6': RangeFetcher.get_cloudflare_ipv6,
             'all': RangeFetcher.get_all_with_builtin,
             # backward compat
             'all_vfarid': RangeFetcher.get_all_with_builtin,
             'vfarid': RangeFetcher.get_builtin_ranges,
         }
         fn = source_map.get(source, RangeFetcher.get_all_with_builtin)
-        return normalize_ipv4_ranges(fn())
+        return normalize_ip_ranges(fn())

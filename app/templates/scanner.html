@@ -50,7 +50,7 @@
         <div class="card">
             <h3 class="card-title" data-t="ranges_to_scan_label">Ranges to scan</h3>
             <p class="card-hint" data-t="ranges_hint_paste_fetch">Paste IPs or fetch IP ranges. One IP or CIDR per line.</p>
-            <textarea id="rangesText" class="ranges-textarea" rows="8" placeholder="192.168.1.0/24&#10;104.16.0.0/12"></textarea>
+            <textarea id="rangesText" class="ranges-textarea" rows="8" placeholder="104.16.0.0/12&#10;2606:4700::/32"></textarea>
             <div class="range-add-row">
                 <input type="text" id="addRangeInput" class="input" placeholder="IP or CIDR" />
                 <button class="btn btn-sm" id="btnAddRange" data-t="add_range_btn">Add</button>
@@ -279,6 +279,7 @@
                     <button class="btn" data-source="sh_api">☁️ Cloudflare API</button>
                     <button class="btn" data-source="sh_asn">🔢 Cloudflare ASN</button>
                     <button class="btn" data-source="sh_github">🐙 Cloudflare GitHub</button>
+                    <button class="btn" data-source="sh_ipv6">🌐 Cloudflare IPv6</button>
                     <button class="btn" data-source="fastly_api">⚡ Fastly API</button>
                     <button class="btn" data-source="fastly_asn">🔢 Fastly ASN</button>
                     <button class="btn" data-source="vfarid">✅ Verified CDN IPs</button>
