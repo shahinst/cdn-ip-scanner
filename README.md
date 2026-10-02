@@ -2,7 +2,7 @@
   <img src="image/logo.png" alt="CDN IP Scanner Logo" width="80" height="80">
 </p>
 
-<h1 align="center">CDN IP Scanner V2.0</h1>
+<h1 align="center">CDN IP Scanner V2.1</h1>
 
 <p align="center">
   <b>High Accuracy &bull; Ultra Fast &bull; Real-Time</b>
@@ -49,6 +49,10 @@ The scanner uses a proven **5-attempt verification method** with `/cdn-cgi/trace
 | **V2Ray Config Support** | Parse and test vless://, vmess://, trojan:// configs with automatic IP replacement |
 | **4 Speed Modes** | Hyper (20%), Turbo (40%), Ultra (60%), Deep (80%) — control resource usage |
 | **Fair Sampling** | Round-robin /24 sampling so every range is represented |
+| **Data Center (Colo)** | Shows which CDN edge answered (e.g. FRA, IST, AMS) for every IP |
+| **Download Speed Test** | Optional real download test through the best IPs; speed counts in the score |
+| **Subscription & QR** | V2Ray scans: one-click subscription link for v2rayN / v2rayNG / Hiddify, "copy all configs", and a QR code per IP for your phone |
+| **Desktop App** | Native window on Windows and macOS, browser mode on Linux — no Python needed |
 | **Multi-Language** | Full support for English, فارسی (Persian), 中文 (Chinese), Русский (Russian) |
 | **Dark/Light Theme** | Beautiful modern UI with dark mode support |
 | **Export Results** | Save results as JSON, Excel (.xlsx), or Text (IPs only) |
@@ -92,9 +96,20 @@ You can download pre-built versions for all platforms from the **Releases** page
 
 | Platform | File | Description |
 |----------|------|-------------|
-| **Windows** | `CDN-IP-Scanner.V2.0.Windows.zip` | Standalone exe — just extract and run, no Python needed |
-| **Mac** | `CDN-IP-Scanner.V2.0.Mac.zip` | Build kit — run `build.sh` on Mac |
+| **Windows (64-bit)** | `CDN-IP-Scanner-<version>-windows-x64.zip` | Extract and run `CDN-IP-Scanner.exe` — no Python needed |
+| **macOS (Apple Silicon)** | `CDN-IP-Scanner-<version>-macos-arm64.zip` | M1/M2/M3/M4 Macs |
+| **macOS (Intel)** | `CDN-IP-Scanner-<version>-macos-x64.zip` | Intel Macs |
+| **Linux (x64 / ARM64)** | `CDN-IP-Scanner-<version>-linux-x64.tar.gz` / `linux-arm64` | Extract and run `./CDN-IP-Scanner/CDN-IP-Scanner` (opens your browser) |
 | **Source** | `Source code (zip/tar.gz)` | Main source code for developers |
+
+Every release includes `SHA256SUMS.txt` to verify the downloads.
+
+> **First start:** Windows SmartScreen may show "Windows protected your PC" → *More info* → *Run anyway*.
+> On macOS, if the app "can't be opened", right-click it → *Open*, or run `xattr -dr com.apple.quarantine CDN-IP-Scanner.app`.
+> The builds are not code-signed yet.
+
+Data (database, settings, `scanner.log`) is stored in `%APPDATA%\CDN-IP-Scanner` (Windows),
+`~/Library/Application Support/CDN-IP-Scanner` (macOS) or `~/.local/share/cdn-ip-scanner` (Linux).
 
 ---
 
@@ -156,6 +171,26 @@ pip install -r requirements.txt
 python run.py --port 8080
 ```
 
+### Desktop App from Source
+
+```bash
+pip install -r requirements-desktop.txt
+python desktop.py            # native window (falls back to the browser)
+python desktop.py --browser  # always use the browser
+```
+
+### Building the Executables
+
+```bash
+pip install -r requirements-desktop.txt
+python packaging/build.py        # → release/CDN-IP-Scanner-<version>-<platform>.zip|tar.gz
+python packaging/smoke_test.py   # starts the built app and checks it answers
+```
+
+GitHub Actions builds and smoke-tests Windows, macOS (arm64 + Intel) and Linux (x64 + arm64)
+on every pull request. To publish a release, update the `version` file and push a matching tag
+(e.g. `git tag v2.1 && git push origin v2.1`): the workflow uploads all archives to a new GitHub Release.
+
 ### Environment Variables (`.env`)
 
 | Variable | Default | Description |
@@ -163,6 +198,8 @@ python run.py --port 8080
 | `SECRET_KEY` | random, stored in `data/.secret_key` | Flask secret key |
 | `DATABASE_URL` | SQLite in `data/scanner.db` | e.g. `mysql+pymysql://user:pass@host/db` |
 | `APP_USERNAME` / `APP_PASSWORD` | empty | Built-in HTTP basic auth (use when not behind nginx auth) |
+| `CDN_SCANNER_DATA_DIR` | `./data` (source) / per-user folder (desktop app) | Where the database, secret key and log are stored |
+| `CDN_SCANNER_PORT` | `8765` | Port used by the desktop app |
 | `CORS_ORIGINS` | empty (same-origin only) | Comma-separated extra origins allowed to call the API/WebSocket |
 | `ALLOW_WEB_UPDATE` | `true` | Set to `false` to disable the in-app "Update" button (git pull + restart) |
 | `ALLOW_INSECURE_FETCH` | `false` | Allow fetching ranges without TLS certificate verification (not recommended) |
@@ -207,6 +244,10 @@ Watch the full installation and usage tutorial on YouTube:
 | **پشتیبانی V2Ray** | پارس و تست کانفیگ‌های vless://، vmess://، trojan:// با جایگزینی خودکار آی‌پی |
 | **۴ حالت سرعت** | هایپر (۲۰%)، توربو (۴۰%)، اولترا (۶۰%)، دیپ (۸۰%) — کنترل مصرف منابع |
 | **نمونه‌برداری منصفانه** | نمونه‌برداری چرخشی از بلوک‌های /24 تا همه رنج‌ها پوشش داده شوند |
+| **دیتاسنتر (Colo)** | نمایش دیتاسنتر CDN که به هر آی‌پی پاسخ داده (مثلاً FRA، IST، AMS) |
+| **تست سرعت دانلود** | تست واقعی سرعت دانلود بهترین آی‌پی‌ها (اختیاری) و تأثیر آن در امتیاز |
+| **ساب‌اسکریپشن و QR** | در اسکن V2Ray: لینک ساب‌اسکریپشن برای v2rayN / v2rayNG / Hiddify، کپی همه کانفیگ‌ها و QR کد هر آی‌پی برای گوشی |
+| **برنامه دسکتاپ** | پنجره مستقل در ویندوز و مک، حالت مرورگر در لینوکس — بدون نیاز به پایتون |
 | **چندزبانه** | پشتیبانی کامل از فارسی، English، 中文، Русский |
 | **تم تاریک/روشن** | رابط کاربری مدرن و زیبا با پشتیبانی حالت تاریک |
 | **خروجی نتایج** | ذخیره نتایج به صورت JSON، اکسل (xlsx.) یا متن (فقط آی‌پی) |
@@ -252,9 +293,16 @@ Watch the full installation and usage tutorial on YouTube:
 
 | پلتفرم | فایل | توضیحات |
 |--------|------|---------|
-| **ویندوز** | `CDN-IP-Scanner.V2.0.Windows.zip` | فایل exe مستقل — فقط استخراج و اجرا کنید، نیاز به پایتون نیست |
-| **مک** | `CDN-IP-Scanner.V2.0.Mac.zip` | کیت ساخت — فایل build.sh را روی مک اجرا کنید |
+| **ویندوز (۶۴ بیتی)** | `CDN-IP-Scanner-<version>-windows-x64.zip` | استخراج کنید و `CDN-IP-Scanner.exe` را اجرا کنید — بدون نیاز به پایتون |
+| **مک (Apple Silicon)** | `CDN-IP-Scanner-<version>-macos-arm64.zip` | مک‌های M1/M2/M3/M4 |
+| **مک (اینتل)** | `CDN-IP-Scanner-<version>-macos-x64.zip` | مک‌های اینتلی |
+| **لینوکس (x64 / ARM64)** | `CDN-IP-Scanner-<version>-linux-x64.tar.gz` / `linux-arm64` | استخراج و اجرای `./CDN-IP-Scanner/CDN-IP-Scanner` (مرورگر باز می‌شود) |
 | **سورس** | `Source code (zip/tar.gz)` | کد منبع اصلی برای توسعه‌دهندگان |
+
+فایل `SHA256SUMS.txt` در هر نسخه برای بررسی صحت دانلود قرار دارد.
+
+> **اولین اجرا:** اگر ویندوز پیام «Windows protected your PC» داد، روی *More info* و بعد *Run anyway* بزنید.
+> در مک اگر برنامه باز نشد، روی آن راست‌کلیک کرده و *Open* را بزنید، یا دستور `xattr -dr com.apple.quarantine CDN-IP-Scanner.app` را اجرا کنید.
 
 </div>
 
@@ -336,7 +384,10 @@ bash /opt/cdn-ip-scanner/uninstall.sh
 
 ```
 cdn-ip-scanner/
-├── run.py                  # Application entry point
+├── run.py                  # Web server entry point
+├── desktop.py              # Desktop app launcher (native window / browser)
+├── packaging/              # PyInstaller build + smoke test scripts
+├── .github/workflows/      # CI (tests) and multi-platform build & release
 ├── install.sh              # Smart Linux installer
 ├── requirements.txt        # Python dependencies
 ├── version                 # Version file
@@ -351,6 +402,7 @@ cdn-ip-scanner/
     │   ├── core.py         # Scan engine (5-attempt verification)
     │   ├── range_fetcher.py # CDN range fetcher (multi-source)
     │   ├── operators.py    # ISP operator definitions & fetch
+    │   ├── speedtest.py    # Download speed test through a CDN IP
     │   └── v2ray.py        # V2Ray config parser & scanner
     ├── static/
     │   ├── css/style.css   # Modern responsive design

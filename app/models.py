@@ -16,6 +16,8 @@ class ScanResult(db.Model):
     open_ports = db.Column(db.Text, nullable=True)  # JSON list
     score = db.Column(db.Float, default=0.0)
     operator = db.Column(db.String(100), nullable=True)
+    colo = db.Column(db.String(10), nullable=True)   # CDN edge data center, e.g. FRA
+    speed = db.Column(db.Float, nullable=True)       # download speed in KB/s (if tested)
     scan_session_id = db.Column(db.Integer, db.ForeignKey('scan_sessions.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=utcnow)
 
@@ -27,6 +29,8 @@ class ScanResult(db.Model):
             'open_ports': json.loads(self.open_ports) if self.open_ports else [],
             'score': self.score,
             'operator': self.operator or '',
+            'colo': self.colo or '',
+            'speed': self.speed,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -36,6 +40,7 @@ class ScanSession(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     mode = db.Column(db.String(50), nullable=True)
     scan_method = db.Column(db.String(50), nullable=True)
+    v2ray_config = db.Column(db.Text, nullable=True)  # template config (for subscription output)
     total_scanned = db.Column(db.Integer, default=0)
     total_found = db.Column(db.Integer, default=0)
     duration = db.Column(db.Float, default=0.0)
@@ -108,3 +113,26 @@ class ScanLog(db.Model):
             'message': self.message,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
+
+
+# Columns added after the first release: (table, column, SQL type).
+# db.create_all() never alters existing tables, so these are added on startup.
+_ADDED_COLUMNS = [
+    ('scan_results', 'colo', 'VARCHAR(10)'),
+    ('scan_results', 'speed', 'FLOAT'),
+    ('scan_sessions', 'v2ray_config', 'TEXT'),
+]
+
+
+def migrate_schema():
+    """Add missing columns to databases created by older versions."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    tables = set(inspector.get_table_names())
+    with db.engine.begin() as conn:
+        for table, column, sql_type in _ADDED_COLUMNS:
+            if table not in tables:
+                continue
+            existing = {c['name'] for c in inspector.get_columns(table)}
+            if column not in existing:
+                conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {column} {sql_type}'))

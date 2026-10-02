@@ -112,6 +112,8 @@ def create_app(config_override=None):
                     cur.execute('PRAGMA journal_mode=WAL')
                     cur.execute('PRAGMA busy_timeout=30000')
                     cur.close()
+            from app.models import migrate_schema
+            migrate_schema()
             db.create_all()
             logging.getLogger(__name__).info("Database initialized successfully")
         except Exception as e:

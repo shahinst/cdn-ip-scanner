@@ -14,3 +14,8 @@ venv/
 data/
 .env
 *.log
+
+# Packaging output (packaging/build.py)
+build/
+dist/
+release/

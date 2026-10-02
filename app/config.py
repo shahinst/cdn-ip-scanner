@@ -1,16 +1,40 @@
 """
-CDN IP Scanner V2.0 - Configuration (Linux Edition)
+CDN IP Scanner - Configuration (Linux / Windows / macOS)
 Author: shahinst
 
-Linux-optimized: defaults to SQLite (no external DB required).
+Defaults to SQLite (no external DB required).
 Supports MySQL/MariaDB via DATABASE_URL env var.
 """
 
 import os
+import sys
 import secrets
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, 'data')
+# True when running from a PyInstaller build (desktop app)
+FROZEN = bool(getattr(sys, 'frozen', False))
+
+
+def _default_data_dir():
+    """
+    Where the database and secret key live. Source checkouts keep using ./data;
+    packaged apps can't write next to the executable (Program Files, read-only
+    .app bundles), so they use the per-user application data directory.
+    """
+    if os.environ.get('CDN_SCANNER_DATA_DIR'):
+        return os.environ['CDN_SCANNER_DATA_DIR']
+    if not FROZEN:
+        return os.path.join(BASE_DIR, 'data')
+    if sys.platform == 'win32':
+        root = os.environ.get('APPDATA') or os.path.expanduser('~')
+        return os.path.join(root, 'CDN-IP-Scanner')
+    if sys.platform == 'darwin':
+        return os.path.expanduser('~/Library/Application Support/CDN-IP-Scanner')
+    root = os.environ.get('XDG_DATA_HOME') or os.path.expanduser('~/.local/share')
+    return os.path.join(root, 'cdn-ip-scanner')
+
+
+DATA_DIR = _default_data_dir()
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # Database: use DATABASE_URL env var if set, otherwise SQLite (works everywhere)
@@ -80,7 +104,11 @@ class Config:
     CORS_ORIGINS = [o.strip() for o in os.environ.get('CORS_ORIGINS', '').split(',') if o.strip()]
 
     # Allow /api/do-update (git pull + pip install + restart) from the web UI.
-    ALLOW_WEB_UPDATE = os.environ.get('ALLOW_WEB_UPDATE', 'true').lower() in ('1', 'true', 'yes')
+    # Packaged apps are updated by downloading a new release instead.
+    ALLOW_WEB_UPDATE = (not FROZEN and
+                        os.environ.get('ALLOW_WEB_UPDATE', 'true').lower() in ('1', 'true', 'yes'))
+    FROZEN = FROZEN
+    DATA_DIR = DATA_DIR
 
     BASE_DIR = BASE_DIR
     APP_NAME = 'CDN IP Scanner'
@@ -88,5 +116,6 @@ class Config:
     AUTHOR = 'shahinst'
     GITHUB_URL = 'https://github.com/shahinst'
     GITHUB_REPO_URL = 'https://github.com/shahinst/cdn-ip-scanner'
+    RELEASES_URL = 'https://github.com/shahinst/cdn-ip-scanner/releases/latest'
     WEBSITE_URL = 'https://digicloud.tr'
     YOUTUBE_URL = 'https://www.youtube.com/@shaahinst'

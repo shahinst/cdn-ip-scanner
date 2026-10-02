@@ -42,7 +42,7 @@ def _plain_config(port):
 def test_ip_requires_cdn_response(http_server):
     cdn_port = http_server({'CF-RAY': '1-FRA'})
     plain_port = http_server({'Server': 'nginx'})
-    ok, latency = V2RayConfigParser.test_ip_with_config(_plain_config(cdn_port), '127.0.0.1', timeout=3)
-    assert ok and latency is not None
-    ok, _ = V2RayConfigParser.test_ip_with_config(_plain_config(plain_port), '127.0.0.1', timeout=3)
+    ok, latency, colo = V2RayConfigParser.test_ip_with_config(_plain_config(cdn_port), '127.0.0.1', timeout=3)
+    assert ok and latency is not None and colo == 'FRA'
+    ok, _, _ = V2RayConfigParser.test_ip_with_config(_plain_config(plain_port), '127.0.0.1', timeout=3)
     assert not ok

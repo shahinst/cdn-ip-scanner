@@ -51,9 +51,9 @@ def test_trace_check_accepts_cdn_and_rejects_other_servers(http_server):
     scanner = SHScanner()
     cdn_port = http_server({'CF-RAY': '123-FRA', 'Server': 'cloudflare'})
     plain_port = http_server({'Server': 'nginx'})
-    ok, latency = scanner._sequential_trace_check('127.0.0.1', cdn_port, 9999)
-    assert ok and latency >= 0
-    ok, _ = scanner._sequential_trace_check('127.0.0.1', plain_port, 9999)
+    ok, latency, colo = scanner._sequential_trace_check('127.0.0.1', cdn_port, 9999)
+    assert ok and latency >= 0 and colo == 'FRA'
+    ok, _, _ = scanner._sequential_trace_check('127.0.0.1', plain_port, 9999)
     assert not ok
 
 

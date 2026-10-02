@@ -19,6 +19,7 @@ from app.scanner.operators import (
     OPERATORS_BY_COUNTRY, fetch_all_operator_prefixes
 )
 from app.scanner.v2ray import V2RayConfigParser, V2RayScanner
+from app.scanner.speedtest import measure_download, DEFAULT_SPEED_TEST_URL
 
 api_bp = Blueprint('api', __name__)
 logger = logging.getLogger(__name__)
@@ -42,6 +43,8 @@ SETTINGS_DEFAULTS = {
     'language': 'en', 'log_enabled': 'false',
     'debug_enabled': 'false',
     'operator_country': 'ir',
+    'speed_test': 'false', 'speed_test_size': '1024', 'speed_test_count': '10',
+    'speed_test_url': DEFAULT_SPEED_TEST_URL,
 }
 
 
@@ -231,6 +234,55 @@ def build_v2ray_config():
     return jsonify({'config': built})
 
 
+def _session_configs(session_id, limit):
+    """Rebuilt V2Ray configs (best score first) for the IPs found by a V2Ray scan."""
+    sess = db.session.get(ScanSession, session_id)
+    if not sess or not sess.v2ray_config:
+        return None
+    parsed = V2RayConfigParser.parse(sess.v2ray_config)
+    if not parsed:
+        return None
+    rows = (ScanResult.query.filter_by(scan_session_id=session_id)
+            .order_by(ScanResult.score.desc()).limit(limit).all())
+    return [V2RayConfigParser.rebuild_config(parsed, r.ip, name_suffix=f' | {r.ip}') for r in rows]
+
+
+@api_bp.route('/v2ray/subscription/<int:session_id>', methods=['GET'])
+def v2ray_subscription(session_id):
+    """
+    Subscription for V2Ray clients (v2rayN, v2rayNG, Hiddify, ...): base64 of one
+    config per line. `?format=plain` returns the plain lines instead.
+    """
+    import base64
+    from flask import Response
+    limit = _to_int(request.args.get('limit'), 50, lo=1, hi=1000)
+    configs = _session_configs(session_id, limit)
+    if configs is None:
+        return jsonify({'error': 'No V2Ray scan with this session id'}), 404
+    text = '\n'.join(configs)
+    if request.args.get('format') == 'plain':
+        return Response(text, mimetype='text/plain; charset=utf-8')
+    return Response(base64.b64encode(text.encode()).decode(), mimetype='text/plain',
+                    headers={'Content-Disposition': f'inline; filename=sub-{session_id}.txt'})
+
+
+@api_bp.route('/v2ray/qr', methods=['POST'])
+def v2ray_qr():
+    """QR code (SVG) of the config rebuilt with the given IP, for scanning with a phone."""
+    from flask import Response
+    import io
+    import segno
+    data = request.get_json(silent=True) or {}
+    parsed = V2RayConfigParser.parse(data.get('config', ''))
+    ip = str(data.get('ip', '')).strip()
+    if not parsed or not ip:
+        return jsonify({'error': 'config and ip required'}), 400
+    built = V2RayConfigParser.rebuild_config(parsed, ip, name_suffix=f' | {ip}')
+    buf = io.BytesIO()
+    segno.make(built, error='m').save(buf, kind='svg', scale=5, border=2, dark='#000', light='#fff')
+    return Response(buf.getvalue(), mimetype='image/svg+xml')
+
+
 # ========== Scanning ==========
 
 @api_bp.route('/scan/start', methods=['POST'])
@@ -262,6 +314,12 @@ def _start_scan_locked():
         operator_key = operator_key.lower()
     country = (data.get('country') or 'ir').strip().lower() or 'ir'
     v2ray_config = data.get('v2ray_config', '')
+    speed_opts = {
+        'enabled': str(data.get('speed_test', False)).lower() in ('true', '1', 'yes'),
+        'size_kb': _to_int(data.get('speed_test_size'), 1024, lo=64, hi=51200),
+        'count': _to_int(data.get('speed_test_count'), 10, lo=1, hi=200),
+        'url': str(data.get('speed_test_url') or DEFAULT_SPEED_TEST_URL).strip(),
+    }
     _log_enabled = str(data.get('log_enabled', True)).lower() in ('true', '1', 'yes')
     _debug_enabled = str(data.get('debug_enabled', False)).lower() in ('true', '1', 'yes')
 
@@ -276,7 +334,8 @@ def _start_scan_locked():
         target_count = _to_int(target_count, 100, lo=1, hi=100000)
 
     # Create session
-    session = ScanSession(mode=mode, scan_method=scan_method, status='running')
+    session = ScanSession(mode=mode, scan_method=scan_method, status='running',
+                          v2ray_config=v2ray_config if scan_method == 'v2ray' else None)
     db.session.add(session)
     db.session.commit()
     sess_id = session.id
@@ -350,6 +409,7 @@ def _start_scan_locked():
                 total_scanned = 0
 
                 found = 0
+                found_results = []  # for the speed-test phase
                 found_ips = set()  # random sampling can pick the same IP in several batches
 
                 def on_progress(done, total_ips, speed=0, elapsed=0):
@@ -413,16 +473,19 @@ def _start_scan_locked():
                         open_ports=json.dumps(result.get('open_ports', [])),
                         score=score,
                         operator=operator_name,
+                        colo=result.get('colo') or None,
                         scan_session_id=sess_id,
                     )
                     db.session.add(sr)
                     found += 1
+                    found_results.append(dict(result, score=score))
                     socketio.emit('scan_result', {
                         'ip': result['ip'],
                         'ping': round(result.get('ping', 0), 1) if result.get('ping') else None,
                         'open_ports': result.get('open_ports', []),
                         'score': round(score, 1),
                         'operator': operator_name,
+                        'colo': result.get('colo') or '',
                         'session_id': sess_id,
                         'is_v2ray': scan_method == 'v2ray',
                     }, namespace='/')
@@ -496,6 +559,9 @@ def _start_scan_locked():
                 except Exception:
                     db.session.rollback()
 
+                if speed_opts['enabled'] and found_results and not _user_stop_requested:
+                    _run_speed_tests(sess_id, found_results, speed_opts)
+
                 elapsed = time.time() - start_time
                 sess = db.session.get(ScanSession, sess_id)
                 if sess:
@@ -531,6 +597,42 @@ def _start_scan_locked():
     _scan_thread.start()
 
     return jsonify({'session_id': sess_id, 'status': 'started'})
+
+
+def _run_speed_tests(sess_id, found_results, opts):
+    """
+    Measure download speed of the best (lowest ping) found IPs one after another
+    (in parallel they would share the bandwidth and the numbers would be wrong).
+    """
+    candidates = sorted(found_results, key=lambda r: r.get('ping') or 1e9)[:opts['count']]
+    _emit_log('INFO', f'Speed test: {len(candidates)} IPs, {opts["size_kb"]} KB each', sess_id)
+    socketio.emit('scan_status', {'status': 'speed_testing', 'total': len(candidates),
+                                  'session_id': sess_id}, namespace='/')
+    for i, res in enumerate(candidates, 1):
+        if _user_stop_requested:
+            _emit_log('INFO', 'Speed test stopped by user.', sess_id)
+            break
+        speed = measure_download(res['ip'], size_kb=opts['size_kb'], url=opts['url'],
+                                 should_stop=lambda: _user_stop_requested)
+        res['speed'] = speed
+        score = SHScanner.calc_score(res)
+        row = ScanResult.query.filter_by(scan_session_id=sess_id, ip=res['ip']).first()
+        if row:
+            row.speed = speed
+            row.score = score
+            try:
+                db.session.commit()
+            except Exception as e:
+                logger.warning("Could not save speed for %s: %s", res['ip'], e)
+                db.session.rollback()
+        socketio.emit('scan_result_update', {
+            'ip': res['ip'], 'speed': speed, 'score': round(score, 1), 'session_id': sess_id,
+        }, namespace='/')
+        socketio.emit('scan_progress', {
+            'done': i, 'total': len(candidates), 'percent': round(i * 100.0 / len(candidates), 1),
+            'speed': 0, 'elapsed': 0, 'session_id': sess_id, 'phase': 'speed',
+        }, namespace='/')
+        _emit_log('INFO', f'Speed {res["ip"]}: ' + (f'{speed:.0f} KB/s' if speed else 'failed'), sess_id)
 
 
 @api_bp.route('/scan/stop', methods=['POST'])
@@ -579,8 +681,8 @@ def get_logs():
 # ========== Export ==========
 
 EXPORT_HEADERS = {
-    'fa': ('رتبه', 'آدرس IP', 'Ping', 'پورت\u200cها', 'امتیاز', 'اپراتور'),
-    'en': ('#', 'IP', 'Ping', 'Ports', 'Score', 'Operator'),
+    'fa': ('رتبه', 'آدرس IP', 'Ping', 'پورت\u200cها', 'امتیاز', 'اپراتور', 'دیتاسنتر', 'سرعت (KB/s)'),
+    'en': ('#', 'IP', 'Ping', 'Ports', 'Score', 'Operator', 'Colo', 'Speed (KB/s)'),
 }
 
 
@@ -625,6 +727,8 @@ def export_results(fmt):
             ws.cell(row=row_idx, column=4, value=ports_str)
             ws.cell(row=row_idx, column=5, value=round(r.score, 1) if r.score is not None else '')
             ws.cell(row=row_idx, column=6, value=(r.operator or ''))
+            ws.cell(row=row_idx, column=7, value=(r.colo or ''))
+            ws.cell(row=row_idx, column=8, value=round(r.speed, 1) if r.speed is not None else '')
         buf = BytesIO()
         wb.save(buf)
         buf.seek(0)
@@ -695,6 +799,8 @@ def check_update():
             'current_version': current_version,
             'remote_version': remote_version,
             'update_available': update_available,
+            'can_self_update': bool(current_app.config.get('ALLOW_WEB_UPDATE')),
+            'download_url': current_app.config.get('RELEASES_URL', ''),
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 200
@@ -708,6 +814,9 @@ def do_update():
     import os
 
     if not current_app.config.get('ALLOW_WEB_UPDATE', True):
+        if current_app.config.get('FROZEN'):
+            return jsonify({'error': 'Download the new version from the Releases page.',
+                            'download_url': current_app.config.get('RELEASES_URL', '')}), 403
         return jsonify({'error': 'Web update is disabled on this server (ALLOW_WEB_UPDATE=false).'}), 403
     if _scan_running():
         return jsonify({'error': 'Stop the running scan before updating.'}), 409

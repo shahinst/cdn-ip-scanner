@@ -1,5 +1,5 @@
-# CDN IP Scanner V2.0 - Linux Dependencies
-# All packages needed for full operation on Linux
+# CDN IP Scanner - Dependencies (Linux, Windows, macOS)
+# Desktop window + packaging extras: see requirements-desktop.txt
 
 # Core web framework
 Flask>=3.0.0
@@ -22,6 +22,9 @@ python-dotenv>=1.0.0
 
 # Excel export
 openpyxl>=3.1.0
+
+# QR codes for V2Ray configs (pure Python)
+segno>=1.6.0
 
 # SSL/TLS support (usually system-provided, but ensure available)
 certifi>=2024.2.2
