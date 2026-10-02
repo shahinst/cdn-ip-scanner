@@ -1,10 +1,11 @@
 """
-SH IP Scanner V2.0 - Database Models (MySQL)
+CDN IP Scanner V2.0 - Database Models (SQLite / MySQL)
 Author: shahinst
 """
 
-from datetime import datetime
-from app import db
+import json
+
+from app import db, utcnow
 
 
 class ScanResult(db.Model):
@@ -15,11 +16,12 @@ class ScanResult(db.Model):
     open_ports = db.Column(db.Text, nullable=True)  # JSON list
     score = db.Column(db.Float, default=0.0)
     operator = db.Column(db.String(100), nullable=True)
+    colo = db.Column(db.String(10), nullable=True)   # CDN edge data center, e.g. FRA
+    speed = db.Column(db.Float, nullable=True)       # download speed in KB/s (if tested)
     scan_session_id = db.Column(db.Integer, db.ForeignKey('scan_sessions.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
 
     def to_dict(self):
-        import json
         return {
             'id': self.id,
             'ip': self.ip,
@@ -27,6 +29,8 @@ class ScanResult(db.Model):
             'open_ports': json.loads(self.open_ports) if self.open_ports else [],
             'score': self.score,
             'operator': self.operator or '',
+            'colo': self.colo or '',
+            'speed': self.speed,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -36,11 +40,12 @@ class ScanSession(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     mode = db.Column(db.String(50), nullable=True)
     scan_method = db.Column(db.String(50), nullable=True)
+    v2ray_config = db.Column(db.Text, nullable=True)  # template config (for subscription output)
     total_scanned = db.Column(db.Integer, default=0)
     total_found = db.Column(db.Integer, default=0)
     duration = db.Column(db.Float, default=0.0)
     status = db.Column(db.String(20), default='pending')  # pending, running, completed, stopped
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
     results = db.relationship('ScanResult', backref='session', lazy='dynamic')
 
@@ -58,13 +63,6 @@ class ScanSession(db.Model):
         }
 
 
-class ClosedIP(db.Model):
-    __tablename__ = 'closed_ips'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    ip = db.Column(db.String(45), nullable=False, unique=True, index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-
 class OperatorRange(db.Model):
     __tablename__ = 'operator_ranges'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -73,22 +71,7 @@ class OperatorRange(db.Model):
     asn = db.Column(db.String(200), nullable=True)
     prefix = db.Column(db.String(50), nullable=False)
     country = db.Column(db.String(10), default='ir')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-
-class OperatorMatrix(db.Model):
-    __tablename__ = 'operator_matrix'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    ip = db.Column(db.String(45), nullable=False, index=True)
-    operator_key = db.Column(db.String(50), nullable=False, index=True)
-    active = db.Column(db.Boolean, default=False)
-    ports = db.Column(db.Text, nullable=True)  # JSON list
-    ping = db.Column(db.Float, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    __table_args__ = (
-        db.UniqueConstraint('ip', 'operator_key', name='uix_ip_operator'),
-    )
+    created_at = db.Column(db.DateTime, default=utcnow)
 
 
 class AppSetting(db.Model):
@@ -96,7 +79,7 @@ class AppSetting(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     key = db.Column(db.String(100), nullable=False, unique=True, index=True)
     value = db.Column(db.Text, nullable=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
 
     @staticmethod
     def get(key, default=None):
@@ -120,7 +103,7 @@ class ScanLog(db.Model):
     session_id = db.Column(db.Integer, db.ForeignKey('scan_sessions.id'), nullable=True)
     level = db.Column(db.String(10), default='INFO')  # INFO, WARN, ERROR, DEBUG
     message = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
 
     def to_dict(self):
         return {
@@ -130,3 +113,26 @@ class ScanLog(db.Model):
             'message': self.message,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
+
+
+# Columns added after the first release: (table, column, SQL type).
+# db.create_all() never alters existing tables, so these are added on startup.
+_ADDED_COLUMNS = [
+    ('scan_results', 'colo', 'VARCHAR(10)'),
+    ('scan_results', 'speed', 'FLOAT'),
+    ('scan_sessions', 'v2ray_config', 'TEXT'),
+]
+
+
+def migrate_schema():
+    """Add missing columns to databases created by older versions."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    tables = set(inspector.get_table_names())
+    with db.engine.begin() as conn:
+        for table, column, sql_type in _ADDED_COLUMNS:
+            if table not in tables:
+                continue
+            existing = {c['name'] for c in inspector.get_columns(table)}
+            if column not in existing:
+                conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {column} {sql_type}'))

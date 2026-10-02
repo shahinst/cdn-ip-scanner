@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
-<div id="app" class="scanner-app" data-lang="{{ lang }}" dir="{% if lang == 'fa' %}rtl{% else %}ltr{% endif %}">
+<div id="app" class="scanner-app" data-lang="{{ lang }}" data-version="{{ version }}" dir="{% if lang == 'fa' %}rtl{% else %}ltr{% endif %}">
     <!-- Header -->
     <header class="header">
         <div class="header-left">
             <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" class="header-logo">
             <div>
-                <h1 class="header-title" data-t="app_title">CDN IP Scanner V 2.0</h1>
-                <p class="header-subtitle" data-t="app_subtitle">High accuracy &bull; Ultra fast &bull; AI powered</p>
+                <h1 class="header-title" data-t="app_title">CDN IP Scanner V {{ version }}</h1>
+                <p class="header-subtitle" data-t="app_subtitle">High accuracy &bull; Ultra fast &bull; Real-time</p>
             </div>
         </div>
         <div class="header-right">
@@ -111,7 +111,7 @@
     <!-- Action Buttons -->
     <div class="action-buttons">
         <button class="btn" id="btnSettings" data-t="settings">⚙️ Settings</button>
-        <button class="btn" id="btnAnalyze" data-t="analyze_btn">🤖 AI Analyze</button>
+        <button class="btn" id="btnAnalyze" data-t="analyze_btn">📊 Analyze</button>
         <button class="btn" id="btnReset" data-t="reset_data_btn">🔄 Reset data</button>
         <button class="btn" id="btnSave" data-t="save_btn">💾 Save</button>
         <button class="btn" id="btnStop" disabled data-t="stop_btn">⏹️ Stop</button>
@@ -131,7 +131,13 @@
 
     <!-- Results Table -->
     <div class="results-section">
-        <h3 data-t="results_title">Results (by speed)</h3>
+        <div class="results-header">
+            <h3 data-t="results_title">Results (by speed)</h3>
+            <div id="v2rayTools" class="v2ray-tools hidden">
+                <button type="button" class="btn btn-sm" id="btnCopySub" data-t="sub_btn">🔗 Subscription link</button>
+                <button type="button" class="btn btn-sm" id="btnCopyAllConfigs" data-t="copy_all_btn">📋 Copy all configs</button>
+            </div>
+        </div>
         <div class="table-container">
             <table id="resultsTable">
                 <thead>
@@ -141,6 +147,8 @@
                         <th data-t="ping_hdr">Ping</th>
                         <th data-t="ports_hdr">Ports</th>
                         <th data-t="score_hdr">Score</th>
+                        <th data-t="colo_hdr">Colo</th>
+                        <th data-t="speed_hdr">Speed</th>
                         <th id="thOperator" class="hidden" data-t="operator_hdr">Operator</th>
                         <th id="thDownload" class="download-col hidden" data-t="download_hdr">Download</th>
                     </tr>
@@ -205,6 +213,30 @@
                 <div class="setting-group">
                     <h4 data-t="settings_ports">Scan ports</h4>
                     <input type="text" id="settingPorts" class="input" value="443,80,8443,2053,2083,2087,2096" />
+                </div>
+                <div class="setting-group">
+                    <h4 data-t="settings_speed">Download speed test</h4>
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="settingSpeedTest" />
+                        <span data-t="settings_speed_desc">After the scan, test the download speed of the best IPs</span>
+                    </label>
+                    <div class="setting-fields">
+                        <label class="setting-field"><span data-t="settings_speed_size">Test size (KB)</span>
+                            <select id="settingSpeedSize" class="select">
+                                <option value="256">256</option>
+                                <option value="512">512</option>
+                                <option value="1024" selected>1024</option>
+                                <option value="5120">5120</option>
+                                <option value="10240">10240</option>
+                            </select>
+                        </label>
+                        <label class="setting-field"><span data-t="settings_speed_count">Number of IPs to test</span>
+                            <input type="number" id="settingSpeedCount" class="input" value="10" min="1" max="200" />
+                        </label>
+                    </div>
+                    <label class="setting-field"><span data-t="settings_speed_url">Test URL ({bytes} = size)</span>
+                        <input type="text" id="settingSpeedUrl" class="input" dir="ltr" value="https://speed.cloudflare.com/__down?bytes={bytes}" />
+                    </label>
                 </div>
                 <div class="setting-group">
                     <h4 data-t="settings_theme">Theme</h4>

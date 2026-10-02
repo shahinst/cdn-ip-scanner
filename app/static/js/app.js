@@ -17,10 +17,10 @@ function localNum(val) {
 // ===== Translations =====
 const T = {
     en: {
-        app_title: "CDN IP Scanner V 2.0", app_subtitle: "High accuracy \u2022 Ultra fast \u2022 AI powered",
+        app_title: "CDN IP Scanner V 2.0", app_subtitle: "High accuracy \u2022 Ultra fast \u2022 Real-time",
         target: "Target", latency: "Latency", found: "Found", time: "Time",
         settings: "\u2699\uFE0F Settings", mode: "Mode", count: "Count",
-        fetch_ranges_btn: "\uD83D\uDCE1 Fetch Ranges", analyze_btn: "\uD83E\uDD16 AI Analyze",
+        fetch_ranges_btn: "\uD83D\uDCE1 Fetch Ranges", analyze_btn: "\uD83D\uDCCA Analyze",
         save_btn: "\uD83D\uDCBE Save", stop_btn: "\u23F9\uFE0F Stop", start_btn: "\uD83D\uDE80 Start Scan",
         export_modal_title: "Choose export format", export_hint: "Select the format for downloading results:",
         export_json: "JSON", export_excel: "Excel", export_text: "Text (IPs only)",
@@ -53,13 +53,22 @@ const T = {
         fetch_all_operators_btn: "\uD83D\uDCE1 Fetch all operator IPs",
         log_title: "\uD83D\uDCCB Scan Log",
         download_hdr: "Download",
+        colo_hdr: "Colo", speed_hdr: "Speed", speed_unit: "KB/s",
+        settings_speed: "Download speed test",
+        settings_speed_desc: "After the scan, test the download speed of the best IPs",
+        settings_speed_size: "Test size (KB)", settings_speed_count: "Number of IPs to test",
+        settings_speed_url: "Test URL ({bytes} = size)",
+        speed_testing: "Testing download speed...",
+        qr_btn: "QR", sub_btn: "\uD83D\uDD17 Subscription link", copy_all_btn: "\uD83D\uDCCB Copy all configs",
+        sub_copied: "Subscription link copied. Add it in v2rayN / v2rayNG / Hiddify.",
+        configs_copied: "Configs copied", qr_title: "Scan with your phone",
         scan_complete: "Done! {found} IPs in {time}s", ip_copied: "IP copied!",
     },
     fa: {
-        app_title: "CDN IP Scanner V 2.0", app_subtitle: "\u062F\u0642\u062A \u0628\u0627\u0644\u0627 \u2022 \u0633\u0631\u0639\u062A \u0641\u0648\u0642\u200C\u0627\u0644\u0639\u0627\u062F\u0647 \u2022 \u0642\u062F\u0631\u062A \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC",
+        app_title: "CDN IP Scanner V 2.0", app_subtitle: "\u062F\u0642\u062A \u0628\u0627\u0644\u0627 \u2022 \u0633\u0631\u0639\u062A \u0641\u0648\u0642\u200C\u0627\u0644\u0639\u0627\u062F\u0647 \u2022 لحظه‌ای",
         target: "\u0647\u062F\u0641", latency: "\u062A\u0623\u062E\u06CC\u0631", found: "\u06CC\u0627\u0641\u062A \u0634\u062F\u0647", time: "\u0632\u0645\u0627\u0646",
         settings: "\u2699\uFE0F \u062A\u0646\u0638\u06CC\u0645\u0627\u062A", mode: "\u062D\u0627\u0644\u062A", count: "\u062A\u0639\u062F\u0627\u062F",
-        fetch_ranges_btn: "\uD83D\uDCE1 \u062F\u0631\u06CC\u0627\u0641\u062A \u0631\u0646\u062C\u200C\u0647\u0627", analyze_btn: "\uD83E\uDD16 \u062A\u062D\u0644\u06CC\u0644 AI",
+        fetch_ranges_btn: "\uD83D\uDCE1 \u062F\u0631\u06CC\u0627\u0641\u062A \u0631\u0646\u062C\u200C\u0647\u0627", analyze_btn: "\uD83D\uDCCA \u062A\u062D\u0644\u06CC\u0644",
         save_btn: "\uD83D\uDCBE \u0630\u062E\u06CC\u0631\u0647", stop_btn: "\u23F9\uFE0F \u062A\u0648\u0642\u0641", start_btn: "\uD83D\uDE80 \u0634\u0631\u0648\u0639 \u0627\u0633\u06A9\u0646",
         export_modal_title: "\u0627\u0646\u062A\u062E\u0627\u0628 \u0641\u0631\u0645\u062A \u062E\u0631\u0648\u062C\u06CC", export_hint: "\u0641\u0631\u0645\u062A \u062E\u0631\u0648\u062C\u06CC \u0631\u0627 \u0628\u0631\u0627\u06CC \u062F\u0627\u0646\u0644\u0648\u062F \u0646\u062A\u0627\u06CC\u062C \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F:",
         export_json: "JSON", export_excel: "\u0627\u06A9\u0633\u0644", export_text: "\u062A\u06A9\u0633\u062A (\u0641\u0642\u0637 \u0622\u06CC\u200C\u067E\u06CC)",
@@ -93,16 +102,26 @@ const T = {
         fetch_all_operators_btn: "\uD83D\uDCE1 \u062F\u0631\u06CC\u0627\u0641\u062A \u0647\u0645\u0647 \u0622\u06CC\u200C\u067E\u06CC\u200C\u0647\u0627\u06CC \u0627\u067E\u0631\u0627\u062A\u0648\u0631\u0647\u0627",
         log_title: "\uD83D\uDCCB \u0644\u0627\u06AF \u0627\u0633\u06A9\u0646",
         download_hdr: "\u062F\u0627\u0646\u0644\u0648\u062F",
+        colo_hdr: "دیتاسنتر", speed_hdr: "سرعت", speed_unit: "KB/s",
+        settings_speed: "تست سرعت دانلود",
+        settings_speed_desc: "بعد از اسکن، سرعت دانلود بهترین آی‌پی‌ها تست شود",
+        settings_speed_size: "حجم تست (KB)", settings_speed_count: "تعداد آی‌پی برای تست",
+        settings_speed_url: "آدرس تست ({bytes} = حجم)",
+        speed_testing: "در حال تست سرعت دانلود...",
+        qr_btn: "QR", sub_btn: "\uD83D\uDD17 لینک ساب‌اسکریپشن", copy_all_btn: "\uD83D\uDCCB کپی همه کانفیگ‌ها",
+        sub_copied: "لینک ساب‌اسکریپشن کپی شد. آن را در v2rayN / v2rayNG / Hiddify اضافه کنید.",
+        configs_copied: "کانفیگ‌ها کپی شد", qr_title: "با گوشی اسکن کنید",
         scan_complete: "\u0627\u062A\u0645\u0627\u0645! {found} IP \u062F\u0631 {time} \u062B\u0627\u0646\u06CC\u0647", ip_copied: "IP \u06A9\u067E\u06CC \u0634\u062F!",
     },
     zh: {
-        app_title: "CDN IP \u626B\u63CF\u5668 V 2.0", app_subtitle: "\u9AD8\u7CBE\u5EA6 \u2022 \u8D85\u5FEB \u2022 AI \u9A71\u52A8",
+        app_title: "CDN IP \u626B\u63CF\u5668 V 2.0", app_subtitle: "\u9AD8\u7CBE\u5EA6 \u2022 \u8D85\u5FEB \u2022 \u5B9E\u65F6",
         target: "\u76EE\u6807", latency: "\u5EF6\u8FDF", found: "\u5DF2\u627E\u5230", time: "\u65F6\u95F4",
         settings: "\u2699\uFE0F \u8BBE\u7F6E", start_btn: "\uD83D\uDE80 \u5F00\u59CB\u626B\u63CF", stop_btn: "\u23F9\uFE0F \u505C\u6B62",
         save_btn: "\uD83D\uDCBE \u4FDD\u5B58", ready_status: "\u51C6\u5907\u5C31\u7EEA",
         results_title: "\u7ED3\u679C", rank_hdr: "\u6392\u540D", ip_hdr: "IP", ping_hdr: "Ping",
         ports_hdr: "\u7AEF\u53E3", score_hdr: "\u5206\u6570", operator_hdr: "\u8FD0\u8425\u5546",
         log_title: "\uD83D\uDCCB \u626B\u63CF\u65E5\u5FD7", download_hdr: "\u4E0B\u8F7D",
+        colo_hdr: "\u673A\u623F", speed_hdr: "\u901F\u5EA6",
         settings_log: "\u65E5\u5FD7", settings_log_desc: "\u663E\u793A\u626B\u63CF\u65E5\u5FD7\u9762\u677F",
         settings_debug: "\u8C03\u8BD5", settings_debug_desc: "\u542F\u7528\u8C03\u8BD5\u6A21\u5F0F",
         update_checking: "\u68C0\u67E5\u66F4\u65B0\u4E2D...", update_available: "\u65B0\u7248\u672C {v} \u53EF\u7528\uFF01",
@@ -114,13 +133,14 @@ const T = {
         scan_complete: "\u5B8C\u6210\uFF01{found} IP\uFF0C\u8017\u65F6 {time}s", ip_copied: "IP \u5DF2\u590D\u5236\uFF01",
     },
     ru: {
-        app_title: "CDN IP \u0421\u043A\u0430\u043D\u0435\u0440 V 2.0", app_subtitle: "\u0422\u043E\u0447\u043D\u043E\u0441\u0442\u044C \u2022 \u0421\u043A\u043E\u0440\u043E\u0441\u0442\u044C \u2022 \u0418\u0418",
+        app_title: "CDN IP \u0421\u043A\u0430\u043D\u0435\u0440 V 2.0", app_subtitle: "\u0422\u043E\u0447\u043D\u043E\u0441\u0442\u044C \u2022 \u0421\u043A\u043E\u0440\u043E\u0441\u0442\u044C \u2022 \u0420\u0435\u0430\u043B\u044C\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F",
         target: "\u0426\u0435\u043B\u044C", latency: "\u0417\u0430\u0434\u0435\u0440\u0436\u043A\u0430", found: "\u041D\u0430\u0439\u0434\u0435\u043D\u043E", time: "\u0412\u0440\u0435\u043C\u044F",
         settings: "\u2699\uFE0F \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438", start_btn: "\uD83D\uDE80 \u0421\u043A\u0430\u043D\u0438\u0440\u043E\u0432\u0430\u0442\u044C", stop_btn: "\u23F9\uFE0F \u0421\u0442\u043E\u043F",
         save_btn: "\uD83D\uDCBE \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C", ready_status: "\u0413\u043E\u0442\u043E\u0432",
         results_title: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B", rank_hdr: "\u0420\u0430\u043D\u0433", ip_hdr: "IP", ping_hdr: "Ping",
         ports_hdr: "\u041F\u043E\u0440\u0442\u044B", score_hdr: "\u041E\u0446\u0435\u043D\u043A\u0430", operator_hdr: "\u041E\u043F\u0435\u0440\u0430\u0442\u043E\u0440",
         log_title: "\uD83D\uDCCB \u041B\u043E\u0433 \u0441\u043A\u0430\u043D\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u044F", download_hdr: "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C",
+        colo_hdr: "\u0414\u0426", speed_hdr: "\u0421\u043A\u043E\u0440\u043E\u0441\u0442\u044C",
         settings_log: "\u041B\u043E\u0433", settings_log_desc: "\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u043F\u0430\u043D\u0435\u043B\u044C \u043B\u043E\u0433\u043E\u0432",
         settings_debug: "\u041E\u0442\u043B\u0430\u0434\u043A\u0430", settings_debug_desc: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u0440\u0435\u0436\u0438\u043C \u043E\u0442\u043B\u0430\u0434\u043A\u0438",
         update_checking: "\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u0439...", update_available: "\u041D\u043E\u0432\u0430\u044F \u0432\u0435\u0440\u0441\u0438\u044F {v}!",
@@ -151,7 +171,8 @@ function t(key) { return (T[lang] && T[lang][key]) || (T.en[key]) || key; }
 function applyTranslations() {
     document.querySelectorAll('[data-t]').forEach(el => {
         const key = el.dataset.t;
-        const text = t(key);
+        let text = t(key);
+        if (key === 'app_title') text = text.replace('2.0', document.querySelector('#app')?.dataset.version || '2.0');
         if (text) {
             if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = text;
             else el.textContent = text;
@@ -206,7 +227,9 @@ function initSocket() {
         const status = document.getElementById('progressStatus');
         if (bar) bar.style.width = data.percent + '%';
         if (status) {
-            status.textContent = localNum(data.percent) + '% | ' + localNum(data.speed.toFixed(0)) + ' IP/s';
+            status.textContent = data.phase === 'speed'
+                ? t('speed_testing') + ' ' + localNum(data.done) + '/' + localNum(data.total)
+                : localNum(data.percent) + '% | ' + localNum(data.speed.toFixed(0)) + ' IP/s';
         }
         document.getElementById('statFound').textContent = localNum(resultCount);
     });
@@ -233,6 +256,16 @@ function initSocket() {
             .replace('{time}', localNum(elapsed));
         document.getElementById('progressStatus').textContent = msg;
         addLog('INFO', 'Scan complete: ' + (data.total_found || resultCount) + ' IPs found');
+        updateV2rayTools();
+    });
+
+    socket.on('scan_result_update', data => {
+        const row = document.querySelector('#resultsBody tr[data-ip="' + CSS.escape(data.ip) + '"]');
+        if (!row) return;
+        row.querySelector('.speed-cell').textContent = formatSpeed(data.speed);
+        if (data.score != null) {
+            row.querySelector('.score-cell').textContent = localNum(Number(data.score).toFixed(0)) + '/' + localNum('100');
+        }
     });
 
     socket.on('scan_error', data => {
@@ -245,7 +278,12 @@ function initSocket() {
     });
 
     socket.on('scan_log', data => { addLog(data.level, data.message); });
-    socket.on('scan_status', data => { addLog('INFO', 'Scan status: ' + data.status + ', total IPs: ' + data.total); });
+    socket.on('scan_status', data => {
+        addLog('INFO', 'Scan status: ' + data.status + ', total IPs: ' + data.total);
+        if (data.status === 'speed_testing') {
+            document.getElementById('progressStatus').textContent = t('speed_testing');
+        }
+    });
 }
 
 // ===== Log =====
@@ -262,29 +300,41 @@ function addLog(level, message) {
     container.scrollTop = container.scrollHeight;
 }
 
+// Escape untrusted text before putting it into innerHTML
+function escapeHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // ===== Results Table =====
 function addResultRow(data) {
     const tbody = document.getElementById('resultsBody');
     if (!tbody) return;
     const row = document.createElement('tr');
-    const ports = (data.open_ports || []).map(p => p + '\u2705').join(' ');
+    const ports = (data.open_ports || []).map(p => escapeHtml(p) + '\u2705').join(' ');
     const ping = data.ping ? localNum(Math.round(data.ping)) + ' ms' : '\u2014';
     const score = data.score ? localNum(data.score.toFixed(0)) + '/' + localNum('100') : '\u2014';
     const isV2ray = data.is_v2ray === true;
     const showOperator = currentScanMethod !== 'cloud';
-    const operatorText = data.operator || '\u2014';
+    const operatorText = escapeHtml(data.operator || '\u2014');
+    const ipText = escapeHtml(data.ip);
+    row.dataset.ip = data.ip;
 
     let cells =
         '<td>' + localNum('#' + resultCount) + '</td>' +
-        '<td class="ip-cell" data-ip="' + data.ip + '">' + data.ip + '</td>' +
+        '<td class="ip-cell" data-ip="' + ipText + '">' + ipText + '</td>' +
         '<td>' + ping + '</td>' +
         '<td>' + (ports || '\u2014') + '</td>' +
-        '<td>' + score + '</td>';
+        '<td class="score-cell">' + score + '</td>' +
+        '<td>' + escapeHtml(data.colo || '\u2014') + '</td>' +
+        '<td class="speed-cell">' + formatSpeed(data.speed) + '</td>';
     if (showOperator) {
         cells += '<td>' + operatorText + '</td>';
     }
     if (isV2ray) {
-        cells += '<td class="download-col"><button type="button" class="btn btn-sm btn-download" data-ip="' + data.ip + '">' + (lang === 'fa' ? '\u062F\u0627\u0646\u0644\u0648\u062F' : 'Download') + '</button></td>';
+        cells += '<td class="download-col"><button type="button" class="btn btn-sm btn-download" data-ip="' + ipText + '">' + (lang === 'fa' ? '\u062F\u0627\u0646\u0644\u0648\u062F' : 'Download') + '</button>' +
+            ' <button type="button" class="btn btn-sm btn-qr">' + t('qr_btn') + '</button></td>';
     }
     row.innerHTML = cells;
     row.querySelector('.ip-cell').addEventListener('click', () => {
@@ -294,8 +344,84 @@ function addResultRow(data) {
     if (isV2ray) {
         const btn = row.querySelector('.btn-download');
         if (btn) btn.addEventListener('click', () => downloadV2rayConfig(data.ip));
+        row.querySelector('.btn-qr')?.addEventListener('click', () => showConfigQr(data.ip));
     }
     tbody.appendChild(row);
+}
+
+function formatSpeed(speed) {
+    if (speed == null || speed === '') return '\u2014';
+    return speed >= 1024
+        ? localNum((speed / 1024).toFixed(1)) + ' MB/s'
+        : localNum(Math.round(speed)) + ' ' + t('speed_unit');
+}
+
+async function copyText(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (e) {
+        // Fallback for contexts without the async clipboard API
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return ok;
+    }
+}
+
+function updateV2rayTools() {
+    const tools = document.getElementById('v2rayTools');
+    if (tools) tools.classList.toggle('hidden', !(currentScanMethod === 'v2ray' && sessionId && resultCount > 0));
+}
+
+async function copySubscriptionLink() {
+    if (!sessionId) return;
+    const url = location.origin + '/api/v2ray/subscription/' + sessionId;
+    if (await copyText(url)) showToast(t('sub_copied'));
+}
+
+async function copyAllConfigs() {
+    if (!sessionId) return;
+    try {
+        const res = await fetch('/api/v2ray/subscription/' + sessionId + '?format=plain');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        if (await copyText(await res.text())) showToast(t('configs_copied'));
+    } catch (e) {
+        showToast('Error: ' + e.message);
+    }
+}
+
+async function showConfigQr(ip) {
+    if (!currentV2rayConfig) return;
+    try {
+        const res = await fetch('/api/v2ray/qr', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ config: currentV2rayConfig, ip: ip }),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const svg = await res.text();
+        document.getElementById('qrModal')?.remove();
+        const modal = document.createElement('div');
+        modal.id = 'qrModal';
+        modal.className = 'modal';
+        modal.innerHTML =
+            '<div class="modal-content" style="max-width:380px">' +
+                '<div class="modal-header"><h2>' + escapeHtml(t('qr_title')) + '</h2>' +
+                    '<button class="modal-close">&times;</button></div>' +
+                '<div class="modal-body qr-body"></div>' +
+                '<p style="text-align:center">' + escapeHtml(ip) + '</p>' +
+            '</div>';
+        // SVG generated by our own server (segno), not user-controlled markup
+        modal.querySelector('.qr-body').innerHTML = svg.replace(/^<\?xml[^>]*>/, '');
+        modal.querySelector('.modal-close').onclick = () => modal.remove();
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+        document.body.appendChild(modal);
+    } catch (e) {
+        showToast('Error: ' + e.message);
+    }
 }
 
 async function downloadV2rayConfig(ip) {
@@ -353,6 +479,11 @@ async function loadSettings() {
     if (s.ping_min) document.getElementById('settingPingMin').value = s.ping_min;
     if (s.ping_max) document.getElementById('settingPingMax').value = s.ping_max;
     if (s.scan_ports) document.getElementById('settingPorts').value = s.scan_ports;
+    const speedEl = document.getElementById('settingSpeedTest');
+    if (speedEl) speedEl.checked = (s.speed_test === 'true');
+    if (s.speed_test_size) document.getElementById('settingSpeedSize').value = s.speed_test_size;
+    if (s.speed_test_count) document.getElementById('settingSpeedCount').value = s.speed_test_count;
+    if (s.speed_test_url) document.getElementById('settingSpeedUrl').value = s.speed_test_url;
     if (s.theme) setTheme(s.theme);
     // Log checkbox
     const logEl = document.getElementById('settingLogEnabled');
@@ -380,6 +511,10 @@ async function saveSettings() {
         ping_min: document.getElementById('settingPingMin').value,
         ping_max: document.getElementById('settingPingMax').value,
         scan_ports: document.getElementById('settingPorts').value,
+        speed_test: document.getElementById('settingSpeedTest')?.checked ? 'true' : 'false',
+        speed_test_size: document.getElementById('settingSpeedSize')?.value || '1024',
+        speed_test_count: document.getElementById('settingSpeedCount')?.value || '10',
+        speed_test_url: document.getElementById('settingSpeedUrl')?.value || '',
         log_enabled: logEnabledVal ? 'true' : 'false',
         debug_enabled: debugEnabledVal ? 'true' : 'false',
         theme: theme,
@@ -405,6 +540,8 @@ async function startScan() {
     isScanning = true;
     resultCount = 0;
     currentScanMethod = method;
+    sessionId = null;
+    updateV2rayTools();
     currentV2rayConfig = (method === 'v2ray' ? (document.getElementById('v2rayConfig')?.value || '') : '');
     startTime = Date.now();
     document.getElementById('resultsBody').innerHTML = '';
@@ -442,15 +579,23 @@ async function startScan() {
         v2ray_config: v2rayConfig,
         log_enabled: logEnabled,
         debug_enabled: document.getElementById('settingDebug')?.checked || false,
-        clear_previous: true,
+        speed_test: document.getElementById('settingSpeedTest')?.checked || false,
+        speed_test_size: document.getElementById('settingSpeedSize')?.value || '1024',
+        speed_test_count: document.getElementById('settingSpeedCount')?.value || '10',
+        speed_test_url: document.getElementById('settingSpeedUrl')?.value || '',
     });
 
-    if (data.session_id) {
-        sessionId = data.session_id;
-        addLog('INFO', 'Session created: #' + data.session_id);
-    } else if (data.error) {
-        addLog('ERROR', data.error);
+    if (data.error || !data.session_id) {
+        addLog('ERROR', data.error || 'Could not start scan');
+        if (data.error) showToast(data.error);
+        isScanning = false;
+        clearInterval(timerInterval);
+        document.getElementById('btnStart').disabled = false;
+        document.getElementById('btnStop').disabled = true;
+        return;
     }
+    sessionId = data.session_id;
+    addLog('INFO', 'Session created: #' + data.session_id);
 }
 
 async function stopScan() {
@@ -516,11 +661,11 @@ async function parseV2RayConfig() {
     const el = document.getElementById('v2rayParsed');
     if (data.error) { el.textContent = 'Error: ' + data.error; }
     else {
-        el.innerHTML = '<strong>Protocol:</strong> ' + data.protocol + '<br>' +
-            '<strong>IP:</strong> ' + data.ip + '<br>' +
-            '<strong>Port:</strong> ' + data.port + '<br>' +
-            '<strong>SNI:</strong> ' + (data.params?.sni || '\u2014') + '<br>' +
-            '<strong>Host:</strong> ' + (data.params?.host || '\u2014');
+        el.innerHTML = '<strong>Protocol:</strong> ' + escapeHtml(data.protocol) + '<br>' +
+            '<strong>IP:</strong> ' + escapeHtml(data.ip) + '<br>' +
+            '<strong>Port:</strong> ' + escapeHtml(data.port) + '<br>' +
+            '<strong>SNI:</strong> ' + escapeHtml(data.params?.sni || '\u2014') + '<br>' +
+            '<strong>Host:</strong> ' + escapeHtml(data.params?.host || '\u2014');
     }
     el.classList.remove('hidden');
 }
@@ -582,6 +727,17 @@ function addRange() {
 }
 
 // ===== Update Checker with Confirmation + Progress =====
+function openExternal(url) {
+    // target=_blank links are opened in the system browser by the desktop window too
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+}
+
 async function checkForUpdate() {
     const btn = document.getElementById('btnCheckUpdate');
     if (btn) btn.disabled = true;
@@ -593,6 +749,10 @@ async function checkForUpdate() {
         if (data.error) {
             showToast(t('update_error') + ' ' + data.error);
             addLog('ERROR', t('update_error') + ': ' + data.error);
+        } else if (data.update_available && data.can_self_update === false && data.download_url) {
+            // Packaged desktop app: updates are new releases, not git pulls
+            showToast('v' + data.remote_version + ' \u2192 ' + data.download_url);
+            openExternal(data.download_url);
         } else if (data.update_available) {
             // Show confirmation modal
             showUpdateModal(data.remote_version);
@@ -620,7 +780,7 @@ function showUpdateModal(version) {
             '<div class="modal-header"><h2>' + t('update_btn') + '</h2>' +
                 '<button class="modal-close" id="closeUpdate">&times;</button></div>' +
             '<div class="modal-body" style="text-align:center">' +
-                '<p style="font-size:1rem;margin-bottom:1rem">' + t('update_confirm').replace('{v}', version) + '</p>' +
+                '<p style="font-size:1rem;margin-bottom:1rem">' + escapeHtml(t('update_confirm').replace('{v}', version)) + '</p>' +
                 '<div id="updateProgressWrap" class="hidden" style="margin:1rem 0">' +
                     '<div class="progress-bar-outer"><div class="progress-bar-inner" id="updateProgressBar" style="width:0%"></div></div>' +
                     '<p id="updateProgressText" style="font-size:0.8rem;color:var(--muted);margin-top:0.5rem"></p>' +
@@ -712,6 +872,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnParseConfig')?.addEventListener('click', parseV2RayConfig);
     document.getElementById('operatorCountry')?.addEventListener('change', loadOperators);
     document.getElementById('btnFetchAllOps')?.addEventListener('click', fetchAllOperators);
+    document.getElementById('btnCopySub')?.addEventListener('click', copySubscriptionLink);
+    document.getElementById('btnCopyAllConfigs')?.addEventListener('click', copyAllConfigs);
 
     // Settings modal
     document.getElementById('btnSettings')?.addEventListener('click', () => document.getElementById('settingsModal').classList.remove('hidden'));
@@ -753,7 +915,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!data || data.length === 0) return;
         const avgPing = data.reduce((s, r) => s + (r.ping || 0), 0) / data.length;
         const best = data[0];
-        alert('AI Analysis\n' + '='.repeat(30) + '\nFound: ' + data.length + '\nAvg Ping: ' + Math.round(avgPing) + ' ms\nBest IP: ' + best.ip + '\nBest Ping: ' + (best.ping ? Math.round(best.ping) : 'N/A') + ' ms\nBest Score: ' + best.score + '/100');
+        const colos = {};
+        data.forEach(r => { if (r.colo) colos[r.colo] = (colos[r.colo] || 0) + 1; });
+        const coloText = Object.entries(colos).sort((a, b) => b[1] - a[1]).map(([c, n]) => c + ': ' + n).join(', ') || 'N/A';
+        const speeds = data.filter(r => r.speed).map(r => r.speed);
+        const bestSpeed = speeds.length ? Math.max(...speeds) : null;
+        alert('Analysis\n' + '='.repeat(30) + '\nFound: ' + data.length + '\nAvg Ping: ' + Math.round(avgPing) + ' ms' +
+              '\nBest IP: ' + best.ip + '\nBest Ping: ' + (best.ping ? Math.round(best.ping) : 'N/A') + ' ms\nBest Score: ' + best.score + '/100' +
+              '\nData centers: ' + coloText +
+              (bestSpeed ? '\nFastest download: ' + formatSpeed(bestSpeed) : ''));
     });
 
     loadOperators();

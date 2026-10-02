@@ -5,10 +5,12 @@ Author: shahinst
 Fetches CDN IP ranges from multiple sources with:
   - Automatic retry (3 attempts)
   - DNS resolution fallback
-  - SSL certificate verification fallback
+  - Strict TLS verification (opt-out only via ALLOW_INSECURE_FETCH=1)
+  - Validation of every fetched range (IPv4 CIDR only)
   - Timeout handling for slow server connections
 """
 
+import os
 import time
 import ipaddress
 import logging
@@ -18,6 +20,10 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
+
+# Disabling TLS verification lets anyone on the path inject fake ranges, so it is
+# only allowed when explicitly requested.
+ALLOW_INSECURE_FETCH = os.environ.get('ALLOW_INSECURE_FETCH', '').lower() in ('1', 'true', 'yes')
 
 FETCH_TIMEOUT = 30
 FETCH_RETRIES = 3
@@ -31,8 +37,8 @@ FETCH_HEADERS = {
 
 def _robust_get(url, timeout=FETCH_TIMEOUT, verify=True, retries=FETCH_RETRIES):
     """
-    HTTP GET with automatic retry, SSL fallback, and error logging.
-    On SSL error, retries with verify=False.
+    HTTP GET with automatic retry and error logging.
+    On SSL error, retries without verification only if ALLOW_INSECURE_FETCH is set.
     """
     last_err = None
     for attempt in range(1, retries + 1):
@@ -47,10 +53,12 @@ def _robust_get(url, timeout=FETCH_TIMEOUT, verify=True, retries=FETCH_RETRIES):
             return r
         except requests.exceptions.SSLError as e:
             logger.warning("SSL error on %s (attempt %d): %s", url, attempt, e)
-            if verify:
+            last_err = e
+            if verify and ALLOW_INSECURE_FETCH:
+                logger.warning("Retrying %s WITHOUT certificate verification (ALLOW_INSECURE_FETCH)", url)
                 verify = False
                 continue
-            last_err = e
+            break
         except requests.exceptions.ConnectionError as e:
             logger.warning("Connection error on %s (attempt %d): %s", url, attempt, e)
             last_err = e
@@ -69,6 +77,22 @@ def _robust_get(url, timeout=FETCH_TIMEOUT, verify=True, retries=FETCH_RETRIES):
     raise requests.exceptions.ConnectionError(
         f"Failed after {retries} attempts: {url} — {last_err}"
     )
+
+
+def normalize_ipv4_ranges(ranges):
+    """Keep only valid IPv4 CIDRs/addresses (canonical form, deduplicated, order kept)."""
+    out = []
+    seen = set()
+    for r in ranges or []:
+        try:
+            net = ipaddress.IPv4Network(str(r).strip(), strict=False)
+        except (ValueError, TypeError):
+            continue
+        key = str(net)
+        if key not in seen:
+            seen.add(key)
+            out.append(key)
+    return out
 
 
 class BuiltinCDNRanges:
@@ -402,4 +426,4 @@ class RangeFetcher:
             'vfarid': RangeFetcher.get_builtin_ranges,
         }
         fn = source_map.get(source, RangeFetcher.get_all_with_builtin)
-        return fn()
+        return normalize_ipv4_ranges(fn())

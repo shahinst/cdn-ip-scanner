@@ -2,39 +2,19 @@
 /* Author: shahinst */
 
 /* ===== Local Vazirmatn font (Persian) - from app/static/font ===== */
+/* Only the files shipped in static/font/ (Regular + Bold) are referenced;
+   weights 400-500 use Regular and 600-700 use Bold. */
 @font-face {
     font-family: 'Vazirmatn';
-    src: url('../font/Vazirmatn-Regular.woff2') format('woff2'),
-         url('../font/Vazirmatn-Regular.woff') format('woff'),
-         url('../font/Vazirmatn-Regular.ttf') format('truetype');
-    font-weight: 400;
+    src: url('../font/Vazirmatn-Regular.ttf') format('truetype');
+    font-weight: 400 500;
     font-style: normal;
     font-display: swap;
 }
 @font-face {
     font-family: 'Vazirmatn';
-    src: url('../font/Vazirmatn-Medium.woff2') format('woff2'),
-         url('../font/Vazirmatn-Medium.woff') format('woff'),
-         url('../font/Vazirmatn-Medium.ttf') format('truetype');
-    font-weight: 500;
-    font-style: normal;
-    font-display: swap;
-}
-@font-face {
-    font-family: 'Vazirmatn';
-    src: url('../font/Vazirmatn-SemiBold.woff2') format('woff2'),
-         url('../font/Vazirmatn-SemiBold.woff') format('woff'),
-         url('../font/Vazirmatn-SemiBold.ttf') format('truetype');
-    font-weight: 600;
-    font-style: normal;
-    font-display: swap;
-}
-@font-face {
-    font-family: 'Vazirmatn';
-    src: url('../font/Vazirmatn-Bold.woff2') format('woff2'),
-         url('../font/Vazirmatn-Bold.woff') format('woff'),
-         url('../font/Vazirmatn-Bold.ttf') format('truetype');
-    font-weight: 700;
+    src: url('../font/Vazirmatn-Bold.ttf') format('truetype');
+    font-weight: 600 700;
     font-style: normal;
     font-display: swap;
 }
@@ -520,6 +500,12 @@ body {
 /* ===== Results Table ===== */
 .results-section { margin-bottom: 1rem; }
 .results-section h3 { font-size: 0.9rem; font-weight: 600; margin-bottom: 0.5rem; }
+.results-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.v2ray-tools { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem; }
+.setting-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.setting-field { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.6rem; font-size: 0.8rem; color: var(--muted); }
+.qr-body { display: flex; justify-content: center; }
+.qr-body svg { width: 100%; max-width: 300px; height: auto; background: #fff; border-radius: 8px; }
 
 .table-container {
     overflow-x: auto;
