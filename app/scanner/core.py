@@ -50,6 +50,24 @@ def is_cdn_response(headers, body=''):
     return False
 
 
+def extract_colo(headers, body=''):
+    """
+    Edge data-center code (e.g. 'FRA') of a CDN response, or '' if unknown.
+    Cloudflare: `colo=` line of /cdn-cgi/trace or the `cf-ray: <id>-<COLO>` header.
+    Fastly: last part of `x-served-by: cache-fra19125-FRA`.
+    """
+    for line in (body or '').splitlines():
+        if line.startswith('colo='):
+            return line[5:].strip().upper()[:10]
+    ray = headers.get('cf-ray') or ''
+    if '-' in ray:
+        return ray.rsplit('-', 1)[1].strip().upper()[:10]
+    served_by = (headers.get('x-served-by') or '').split(',')[-1].strip()
+    if '-' in served_by:
+        return served_by.rsplit('-', 1)[1].strip().upper()[:10]
+    return ''
+
+
 def iter_completed(futures, should_stop, poll_interval=2.0):
     """
     Yield futures as they complete, waking up every `poll_interval` seconds to
@@ -232,7 +250,7 @@ class SHScanner:
         FIX 2: max_total_sec حداقل 8 ثانیه — قبلاً با ping_max پایین
                 ممکن بود خیلی کوتاه بشه.
 
-        Returns (is_valid: bool, avg_latency_ms: float).
+        Returns (is_valid: bool, avg_latency_ms: float, colo: str).
         """
         url = _sh_trace_url(ip_str, port)
 
@@ -259,6 +277,7 @@ class SHScanner:
         total_start = time.time()
         successes = 0
         aborted = False
+        colo = ''
 
         # Session for connection reuse (TCP+TLS only once per IP)
         session = requests.Session()
@@ -293,7 +312,9 @@ class SHScanner:
                     continue
                 try:
                     if is_cdn_response(r.headers):
-                        r.content  # read the (tiny) trace body so the connection is reused
+                        # read the (tiny) trace body so the connection is reused
+                        body = r.content[:4096].decode('utf-8', errors='ignore')
+                        colo = colo or extract_colo(r.headers, body)
                         successes += 1
                     else:
                         aborted = True  # Not a CDN edge (some random server with the port open)
@@ -311,7 +332,7 @@ class SHScanner:
         avg_latency = total_time_ms / SH_TRACE_ATTEMPTS
 
         is_valid = (successes >= SH_TRACE_MIN_SUCCESS) and (avg_latency <= max_latency_ms)
-        return is_valid, avg_latency
+        return is_valid, avg_latency, colo
 
     def _tcp_connect(self, ip_str, port, timeout_sec):
         """Quick TCP connect to check if port is open."""
@@ -353,8 +374,8 @@ class SHScanner:
             return None
 
         # TCP passed → full 5-sequential-attempt verification
-        result = {'ip': ip_str, 'open_ports': [], 'ping': None}
-        is_valid, avg_latency = self._sequential_trace_check(
+        result = {'ip': ip_str, 'open_ports': [], 'ping': None, 'colo': ''}
+        is_valid, avg_latency, colo = self._sequential_trace_check(
             ip_str, primary_port, self.max_latency_ms
         )
 
@@ -363,6 +384,7 @@ class SHScanner:
             return None
 
         result['ping'] = avg_latency
+        result['colo'] = colo
         result['open_ports'].append(primary_port)
 
         # Quick TCP scan on remaining ports
@@ -420,7 +442,7 @@ class SHScanner:
 
     @staticmethod
     def calc_score(result):
-        """Calculate score based on ping and open ports."""
+        """Calculate score based on ping, open ports and (if measured) download speed."""
         score = 0.0
         ping_val = result.get('ping')
         if ping_val is not None:
@@ -444,4 +466,13 @@ class SHScanner:
             score += 4
         if 8443 in open_ports:
             score += 4
+        speed = result.get('speed') or 0  # KB/s
+        if speed >= 5000:
+            score += 20
+        elif speed >= 2000:
+            score += 15
+        elif speed >= 1000:
+            score += 10
+        elif speed >= 300:
+            score += 5
         return max(0.0, min(100.0, score))

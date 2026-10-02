@@ -11,10 +11,10 @@ machine running the scanner).
 import ssl
 import time
 import socket
-from urllib.parse import parse_qs, urlencode
+from urllib.parse import parse_qs, urlencode, quote
 from concurrent.futures import ThreadPoolExecutor
 
-from app.scanner.core import is_cdn_response, iter_completed, HTTPS_PORTS
+from app.scanner.core import is_cdn_response, extract_colo, iter_completed, HTTPS_PORTS
 
 
 class V2RayConfigParser:
@@ -153,25 +153,34 @@ class V2RayConfigParser:
         }
 
     @staticmethod
-    def rebuild_config(parsed, new_ip):
-        """Rebuild config string with a new IP, keeping everything else the same."""
+    def rebuild_config(parsed, new_ip, name_suffix=''):
+        """
+        Rebuild config string with a new IP, keeping everything else the same.
+        `name_suffix` is appended to the config name (e.g. ' | 1.2.3.4') so that
+        several configs imported into a client can be told apart.
+        """
         if not parsed:
             return None
         protocol = parsed['protocol']
+        fragment = parsed.get('fragment') or ''
+        if name_suffix:
+            fragment += quote(name_suffix)
 
         if protocol == 'vless':
             params_str = urlencode(parsed['params'], doseq=True) if parsed['params'] else ''
             uri = f"vless://{parsed['uuid']}@{new_ip}:{parsed['port']}"
             if params_str:
                 uri += f"?{params_str}"
-            if parsed.get('fragment'):
-                uri += f"#{parsed['fragment']}"
+            if fragment:
+                uri += f"#{fragment}"
             return uri
 
         elif protocol == 'vmess':
             import base64, json, copy
             data = copy.deepcopy(parsed['params'])
             data['add'] = new_ip
+            if name_suffix:
+                data['ps'] = (data.get('ps') or '') + name_suffix
             encoded = base64.b64encode(json.dumps(data).encode()).decode()
             return f"vmess://{encoded}"
 
@@ -180,8 +189,8 @@ class V2RayConfigParser:
             uri = f"trojan://{parsed['uuid']}@{new_ip}:{parsed['port']}"
             if params_str:
                 uri += f"?{params_str}"
-            if parsed.get('fragment'):
-                uri += f"#{parsed['fragment']}"
+            if fragment:
+                uri += f"#{fragment}"
             return uri
 
         return None
@@ -218,10 +227,10 @@ class V2RayConfigParser:
         Test a single IP with the config's TLS SNI / HTTP Host: connect to the IP,
         request /cdn-cgi/trace for the config's host and require a real CDN edge
         response (a bare TCP/TLS handshake is not enough).
-        Returns (success: bool, latency_ms: float or None).
+        Returns (success: bool, latency_ms: float or None, colo: str).
         """
         if not parsed:
-            return False, None
+            return False, None, ''
 
         port = parsed['port']
         params = parsed.get('params', {}) or {}
@@ -248,10 +257,10 @@ class V2RayConfigParser:
             status, headers, body = V2RayConfigParser._parse_http_response(
                 V2RayConfigParser._recv_head(sock))
             if status is None or not is_cdn_response(headers, body):
-                return False, None
-            return True, latency
+                return False, None, ''
+            return True, latency, extract_colo(headers, body)
         except Exception:
-            return False, None
+            return False, None, ''
         finally:
             if sock is not None:
                 try:
@@ -306,11 +315,12 @@ class V2RayScanner:
                 completed += 1
                 ip_str = futures[future]
                 try:
-                    success, latency = future.result()
+                    success, latency, colo = future.result()
                     if success and latency is not None:
                         result = {
                             'ip': ip_str,
                             'ping': latency,
+                            'colo': colo,
                             'open_ports': [parsed_config['port']],
                             'success': True,
                         }

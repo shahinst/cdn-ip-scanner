@@ -11,7 +11,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def _make_handler(headers):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            body = b'fl=1\nh=www.cloudflare.com\ncolo=FRA\n' if 'cf-ray' in headers else b'hello'
+            if self.path.startswith('/__down'):
+                # speed-test endpoint: /__down?bytes=N
+                size = int(self.path.split('bytes=', 1)[1]) if 'bytes=' in self.path else 0
+                body = b'0' * size
+            else:
+                body = b'fl=1\nh=www.cloudflare.com\ncolo=FRA\n' if 'cf-ray' in headers else b'hello'
             self.send_response(200)
             for k, v in headers.items():
                 self.send_header(k, v)

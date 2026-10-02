@@ -1,0 +1,11 @@
+# Extra dependencies for the desktop app (native window) and for building
+# standalone executables. Not needed for server installs (install.sh).
+-r requirements.txt
+
+# Native window (Edge WebView2 on Windows, WebKit on macOS).
+# On Linux the app falls back to the default browser when no GUI backend is available.
+pywebview>=5.0; sys_platform == "win32" or sys_platform == "darwin"
+
+# Building executables (Pillow converts the PNG logo to .ico / .icns)
+pyinstaller>=6.6
+pillow>=10.0

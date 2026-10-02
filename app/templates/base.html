@@ -7,7 +7,8 @@
     <link rel="icon" href="{{ url_for('static', filename='img/logo.png') }}" type="image/png">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+    <!-- Served locally so the app also works offline / where public CDNs are blocked -->
+    <script src="{{ url_for('static', filename='vendor/socket.io.min.js') }}"></script>
     {% block head %}{% endblock %}
 </head>
 <body>

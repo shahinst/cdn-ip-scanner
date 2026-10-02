@@ -82,3 +82,64 @@ def test_scan_ends_when_small_ranges_are_exhausted(client, monkeypatch):
     assert not api._scan_thread.is_alive()
     session = client.get('/api/scan/sessions').get_json()[0]
     assert session['status'] == 'completed' and session['total_scanned'] == 1
+
+
+def _wait_scan():
+    api._scan_thread.join(timeout=30)
+    assert not api._scan_thread.is_alive()
+
+
+def test_scan_reports_colo_and_speed(client, http_server, monkeypatch):
+    monkeypatch.setattr(api, '_scan_thread', None)
+    port = http_server({'CF-RAY': '1-FRA'})
+    r = client.post('/api/scan/start', json={
+        'ranges': ['127.0.0.1'], 'ports': str(port), 'target_count': '1',
+        'speed_test': True, 'speed_test_size': '128',
+        'speed_test_url': f'http://speed.example:{port}/__down?bytes={{bytes}}',
+    })
+    assert r.status_code == 200
+    _wait_scan()
+    results = client.get('/api/scan/results').get_json()
+    assert results[0]['colo'] == 'FRA'
+    assert results[0]['speed'] and results[0]['speed'] > 0
+
+
+def test_v2ray_subscription_and_qr(client, http_server, monkeypatch):
+    import base64
+    monkeypatch.setattr(api, '_scan_thread', None)
+    port = http_server({'CF-RAY': '1-FRA'})
+    config = f'vless://uuid@1.1.1.1:{port}?security=none&type=ws&host=example.com#Mine'
+    r = client.post('/api/scan/start', json={
+        'ranges': ['127.0.0.1'], 'ports': str(port), 'target_count': '1',
+        'scan_method': 'v2ray', 'v2ray_config': config,
+    })
+    session_id = r.get_json()['session_id']
+    _wait_scan()
+
+    plain = client.get(f'/api/v2ray/subscription/{session_id}?format=plain').get_data(as_text=True)
+    assert plain.startswith(f'vless://uuid@127.0.0.1:{port}?') and plain.endswith('#Mine%20%7C%20127.0.0.1')
+    encoded = client.get(f'/api/v2ray/subscription/{session_id}').get_data(as_text=True)
+    assert base64.b64decode(encoded).decode() == plain
+    assert client.get('/api/v2ray/subscription/9999').status_code == 404
+
+    qr = client.post('/api/v2ray/qr', json={'config': config, 'ip': '1.2.3.4'})
+    assert qr.status_code == 200 and qr.mimetype == 'image/svg+xml' and b'<svg' in qr.data
+    assert client.post('/api/v2ray/qr', json={'config': 'bad', 'ip': '1.2.3.4'}).status_code == 400
+
+
+def test_old_database_is_migrated(tmp_path):
+    import sqlite3
+    from app import create_app
+    db_file = tmp_path / 'old.db'
+    con = sqlite3.connect(db_file)
+    con.execute('CREATE TABLE scan_sessions (id INTEGER PRIMARY KEY, mode VARCHAR(50))')
+    con.execute('CREATE TABLE scan_results (id INTEGER PRIMARY KEY, ip VARCHAR(45) NOT NULL, '
+                'scan_session_id INTEGER, score FLOAT)')
+    con.commit()
+    con.close()
+    create_app({'TESTING': True, 'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_file}'})
+    con = sqlite3.connect(db_file)
+    cols = {row[1] for row in con.execute('PRAGMA table_info(scan_results)')}
+    assert {'colo', 'speed'} <= cols
+    assert 'v2ray_config' in {row[1] for row in con.execute('PRAGMA table_info(scan_sessions)')}
+    con.close()

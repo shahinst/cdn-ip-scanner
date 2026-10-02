@@ -66,7 +66,7 @@ def main():
     url = f"http://{args.host}:{args.port}"
     print("")
     print("=" * 48)
-    print(f"  CDN IP Scanner V {app.config['VERSION']} (Linux)")
+    print(f"  CDN IP Scanner V {app.config['VERSION']}")
     print("  Author: shahinst")
     print("-" * 48)
     print(f"  URL:    {url}")
