@@ -5,14 +5,13 @@ Author: shahinst
 
 import json
 import time
+import logging
 import threading
 import traceback
-from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
-from app import db, socketio
+from app import db, socketio, utcnow
 from app.models import (
-    ScanResult, ScanSession, ClosedIP, OperatorRange,
-    OperatorMatrix, AppSetting, ScanLog
+    ScanResult, ScanSession, OperatorRange, AppSetting, ScanLog
 )
 from app.scanner.core import SHScanner, SHNetUtils, SPEED_MODES
 from app.scanner.range_fetcher import RangeFetcher
@@ -20,8 +19,10 @@ from app.scanner.operators import (
     OPERATORS_BY_COUNTRY, fetch_all_operator_prefixes
 )
 from app.scanner.v2ray import V2RayConfigParser, V2RayScanner
+from app.scanner.speedtest import measure_download, DEFAULT_SPEED_TEST_URL
 
 api_bp = Blueprint('api', __name__)
+logger = logging.getLogger(__name__)
 
 # Global scanner instances
 _scanner = SHScanner()
@@ -30,6 +31,38 @@ _active_session_id = None
 _user_stop_requested = False  # set by stop_scan(), checked by run_scan() to exit batch loop
 _log_enabled = False
 _debug_enabled = False
+# Only one scan may run at a time: the scanner instances and flags above are shared.
+_scan_lock = threading.Lock()
+_scan_thread = None
+
+DEFAULT_PORTS = [443, 80, 8443, 2053, 2083, 2087, 2096]
+SETTINGS_DEFAULTS = {
+    'theme': 'light', 'mode': 'hyper',
+    'target_count': '100', 'ping_min': '0', 'ping_max': '9999',
+    'scan_ports': '443,80,8443,2053,2083,2087,2096',
+    'language': 'en', 'log_enabled': 'false',
+    'debug_enabled': 'false',
+    'operator_country': 'ir',
+    'speed_test': 'false', 'speed_test_size': '1024', 'speed_test_count': '10',
+    'speed_test_url': DEFAULT_SPEED_TEST_URL,
+}
+
+
+def _to_int(value, default, lo=None, hi=None):
+    """Parse an int from user input, falling back to `default` and clamping to [lo, hi]."""
+    try:
+        n = int(float(value))
+    except (TypeError, ValueError):
+        n = default
+    if lo is not None:
+        n = max(lo, n)
+    if hi is not None:
+        n = min(hi, n)
+    return n
+
+
+def _scan_running():
+    return _scan_thread is not None and _scan_thread.is_alive()
 
 
 def _emit_log(level, message, session_id=None):
@@ -38,18 +71,21 @@ def _emit_log(level, message, session_id=None):
     # Skip DEBUG-level logs unless debug is enabled
     if level == 'DEBUG' and not _debug_enabled:
         return
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = utcnow().isoformat()
     log_entry = {'level': level, 'message': message, 'timestamp': timestamp}
     try:
         socketio.emit('scan_log', log_entry, namespace='/')
     except Exception:
         pass
-    if _log_enabled and session_id:
+    # DEBUG lines are emitted per IP from many worker threads; persisting them
+    # would hammer the database, so only INFO and above are stored.
+    if _log_enabled and session_id and level != 'DEBUG':
         try:
             log = ScanLog(session_id=session_id, level=level, message=message)
             db.session.add(log)
             db.session.commit()
-        except Exception:
+        except Exception as e:
+            logger.warning("Could not save scan log to database: %s", e)
             try:
                 db.session.rollback()
             except Exception:
@@ -60,27 +96,21 @@ def _emit_log(level, message, session_id=None):
 
 @api_bp.route('/settings', methods=['GET'])
 def get_settings():
-    defaults = {
-        'theme': 'light', 'mode': 'hyper', 'ai_level': 'smart',
-        'target_count': '100', 'ping_min': '0', 'ping_max': '9999',
-        'scan_ports': '443,80,8443,2053,2083,2087,2096',
-        'language': 'en', 'log_enabled': 'false',
-        'debug_enabled': 'false',
-        'operator_country': 'ir',
-    }
     settings = {}
-    for key, default in defaults.items():
+    for key, default in SETTINGS_DEFAULTS.items():
         settings[key] = AppSetting.get(key, default)
     return jsonify(settings)
 
 
 @api_bp.route('/settings', methods=['POST'])
 def save_settings():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     for key, value in data.items():
-        AppSetting.set(key, str(value))
+        if key in SETTINGS_DEFAULTS:
+            AppSetting.set(key, str(value)[:2000])
     global _log_enabled
-    _log_enabled = str(data.get('log_enabled', 'true')).lower() == 'true'
+    if 'log_enabled' in data:
+        _log_enabled = str(data['log_enabled']).lower() == 'true'
     return jsonify({'status': 'ok'})
 
 
@@ -88,7 +118,7 @@ def save_settings():
 
 @api_bp.route('/ranges/fetch', methods=['POST'])
 def fetch_ranges():
-    source = (request.json or {}).get('source', 'all')
+    source = (request.get_json(silent=True) or {}).get('source', 'all')
     try:
         ranges = RangeFetcher.fetch_by_source(source)
         return jsonify({'ranges': ranges, 'count': len(ranges), 'source': source})
@@ -117,7 +147,7 @@ def get_operators():
 
 @api_bp.route('/ranges/operators/fetch', methods=['POST'])
 def fetch_operator_ranges():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     operator_key = data.get('operator_key')
     country = data.get('country', 'ir')
 
@@ -147,7 +177,7 @@ def fetch_operator_ranges():
 @api_bp.route('/ranges/operators/fetch-all', methods=['POST'])
 def fetch_all_operators_route():
     """Fetch IP ranges for all operators in the selected country from RIPE/BGP (no local IP)."""
-    country = (request.json or {}).get('country', 'ir')
+    country = (request.get_json(silent=True) or {}).get('country', 'ir')
     operators = OPERATORS_BY_COUNTRY.get(country, OPERATORS_BY_COUNTRY['ir'])
     results = {}
     for op_key in operators:
@@ -172,7 +202,7 @@ def fetch_all_operators_route():
 
 @api_bp.route('/v2ray/parse', methods=['POST'])
 def parse_v2ray_config():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     config_str = data.get('config', '')
     parsed = V2RayConfigParser.parse(config_str)
     if not parsed:
@@ -190,7 +220,7 @@ def parse_v2ray_config():
 @api_bp.route('/v2ray/build-config', methods=['POST'])
 def build_v2ray_config():
     """Build config string with a new IP for download."""
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     config_str = data.get('config', '')
     new_ip = data.get('ip', '')
     if not config_str or not new_ip:
@@ -204,51 +234,112 @@ def build_v2ray_config():
     return jsonify({'config': built})
 
 
+def _session_configs(session_id, limit):
+    """Rebuilt V2Ray configs (best score first) for the IPs found by a V2Ray scan."""
+    sess = db.session.get(ScanSession, session_id)
+    if not sess or not sess.v2ray_config:
+        return None
+    parsed = V2RayConfigParser.parse(sess.v2ray_config)
+    if not parsed:
+        return None
+    rows = (ScanResult.query.filter_by(scan_session_id=session_id)
+            .order_by(ScanResult.score.desc()).limit(limit).all())
+    return [V2RayConfigParser.rebuild_config(parsed, r.ip, name_suffix=f' | {r.ip}') for r in rows]
+
+
+@api_bp.route('/v2ray/subscription/<int:session_id>', methods=['GET'])
+def v2ray_subscription(session_id):
+    """
+    Subscription for V2Ray clients (v2rayN, v2rayNG, Hiddify, ...): base64 of one
+    config per line. `?format=plain` returns the plain lines instead.
+    """
+    import base64
+    from flask import Response
+    limit = _to_int(request.args.get('limit'), 50, lo=1, hi=1000)
+    configs = _session_configs(session_id, limit)
+    if configs is None:
+        return jsonify({'error': 'No V2Ray scan with this session id'}), 404
+    text = '\n'.join(configs)
+    if request.args.get('format') == 'plain':
+        return Response(text, mimetype='text/plain; charset=utf-8')
+    return Response(base64.b64encode(text.encode()).decode(), mimetype='text/plain',
+                    headers={'Content-Disposition': f'inline; filename=sub-{session_id}.txt'})
+
+
+@api_bp.route('/v2ray/qr', methods=['POST'])
+def v2ray_qr():
+    """QR code (SVG) of the config rebuilt with the given IP, for scanning with a phone."""
+    from flask import Response
+    import io
+    import segno
+    data = request.get_json(silent=True) or {}
+    parsed = V2RayConfigParser.parse(data.get('config', ''))
+    ip = str(data.get('ip', '')).strip()
+    if not parsed or not ip:
+        return jsonify({'error': 'config and ip required'}), 400
+    built = V2RayConfigParser.rebuild_config(parsed, ip, name_suffix=f' | {ip}')
+    buf = io.BytesIO()
+    segno.make(built, error='m').save(buf, kind='svg', scale=5, border=2, dark='#000', light='#fff')
+    return Response(buf.getvalue(), mimetype='image/svg+xml')
+
+
 # ========== Scanning ==========
 
 @api_bp.route('/scan/start', methods=['POST'])
 def start_scan():
-    global _active_session_id, _log_enabled, _debug_enabled
+    with _scan_lock:
+        if _scan_running():
+            return jsonify({'error': 'A scan is already running. Stop it first.',
+                            'session_id': _active_session_id}), 409
+        return _start_scan_locked()
 
-    data = request.json or {}
+
+def _start_scan_locked():
+    global _active_session_id, _log_enabled, _debug_enabled, _scan_thread
+
+    data = request.get_json(silent=True) or {}
     ranges_input = data.get('ranges', [])
     scan_method = data.get('scan_method', 'cloud')
     mode = data.get('mode', 'hyper')
     target_count = data.get('target_count', 100)
-    ping_min = int(data.get('ping_min', 0))
-    ping_max = int(data.get('ping_max', 9999))
-    ports_str = data.get('ports', '443,80,8443,2053,2083,2087,2096')
+    ping_min = _to_int(data.get('ping_min'), 0, lo=0, hi=60000)
+    ping_max = _to_int(data.get('ping_max'), 9999, lo=1, hi=60000)
+    if ping_min > ping_max:
+        ping_min, ping_max = ping_max, ping_min
+    ports_str = str(data.get('ports') or '')
+    if not isinstance(ranges_input, list):
+        ranges_input = str(ranges_input).split()
     operator_key = (data.get('operator_key') or '').strip() or None
     if operator_key:
         operator_key = operator_key.lower()
     country = (data.get('country') or 'ir').strip().lower() or 'ir'
-    clear_previous = data.get('clear_previous', True)
     v2ray_config = data.get('v2ray_config', '')
+    speed_opts = {
+        'enabled': str(data.get('speed_test', False)).lower() in ('true', '1', 'yes'),
+        'size_kb': _to_int(data.get('speed_test_size'), 1024, lo=64, hi=51200),
+        'count': _to_int(data.get('speed_test_count'), 10, lo=1, hi=200),
+        'url': str(data.get('speed_test_url') or DEFAULT_SPEED_TEST_URL).strip(),
+    }
     _log_enabled = str(data.get('log_enabled', True)).lower() in ('true', '1', 'yes')
     _debug_enabled = str(data.get('debug_enabled', False)).lower() in ('true', '1', 'yes')
 
-    ports = [int(p.strip()) for p in ports_str.split(',') if p.strip().isdigit()]
+    ports = [int(p.strip()) for p in ports_str.split(',')
+             if p.strip().isdigit() and 0 < int(p.strip()) < 65536]
     if not ports:
-        ports = [443, 80, 8443, 2053, 2083, 2087, 2096]
+        ports = list(DEFAULT_PORTS)
 
     if target_count == 'All':
         target_count = None
     else:
-        try:
-            target_count = int(target_count)
-        except (ValueError, TypeError):
-            target_count = 100
+        target_count = _to_int(target_count, 100, lo=1, hi=100000)
 
     # Create session
-    session = ScanSession(mode=mode, scan_method=scan_method, status='running')
+    session = ScanSession(mode=mode, scan_method=scan_method, status='running',
+                          v2ray_config=v2ray_config if scan_method == 'v2ray' else None)
     db.session.add(session)
     db.session.commit()
     sess_id = session.id
     _active_session_id = sess_id
-
-    if clear_previous:
-        ClosedIP.query.delete()
-        db.session.commit()
 
     # CRITICAL: Get the CURRENT app reference - do NOT create_app() in thread
     app = current_app._get_current_object()
@@ -258,7 +349,9 @@ def start_scan():
             _emit_log(level, message, sess_id)
 
     _scanner.log_callback = _scanner_log
+    # Reset once per scan (not per batch) so failed IPs stay cached across batches.
     _scanner.reset()
+    _v2ray_scanner.reset()
 
     def run_scan():
         """Background scan thread - uses the EXISTING app context."""
@@ -286,7 +379,6 @@ def start_scan():
                         db.session.commit()
                         socketio.emit('scan_complete', {'session_id': sess_id, 'total_found': 0}, namespace='/')
                         return
-                    _v2ray_scanner.reset()
                     _v2ray_scanner.log_callback = _scanner_log
                     mode_cfg = SPEED_MODES.get(mode, SPEED_MODES['hyper'])
                     _v2ray_scanner.max_workers = max(20, int(50 * mode_cfg['resource_pct']))
@@ -317,6 +409,8 @@ def start_scan():
                 total_scanned = 0
 
                 found = 0
+                found_results = []  # for the speed-test phase
+                found_ips = set()  # random sampling can pick the same IP in several batches
 
                 def on_progress(done, total_ips, speed=0, elapsed=0):
                     nonlocal total_scanned
@@ -336,9 +430,13 @@ def start_scan():
                         operators_dict = OPERATORS_BY_COUNTRY.get(country, OPERATORS_BY_COUNTRY['ir'])
                         if operator_key in operators_dict:
                             _session_operator_name = operators_dict[operator_key].get('name', operator_key)
-                            _emit_log('INFO', f'Operator: {_session_operator_name} — CDN IPs with ping on this operator will be listed', sess_id)
+                            _emit_log('INFO', f'Operator: {_session_operator_name} — results are labeled with this operator', sess_id)
                     if not _session_operator_name:
                         _emit_log('INFO', 'Select an operator from the list (operator column will be empty otherwise).', sess_id)
+                    # All checks run from this server's own network connection: the
+                    # operator label is only accurate if the server is on that operator.
+                    _emit_log('WARN', 'Note: IPs are tested from THIS server\'s network. Results reflect the selected '
+                                      'operator only if the server itself is connected through that operator.', sess_id)
 
                 if not scan_ranges:
                     _emit_log('WARN', 'No CDN ranges. Paste CDN ranges or click Fetch Ranges.', sess_id)
@@ -359,6 +457,9 @@ def start_scan():
                     ping_val = result.get('ping')
                     if ping_val is not None and (ping_val < ping_min or ping_val > ping_max):
                         return
+                    if result['ip'] in found_ips:
+                        return
+                    found_ips.add(result['ip'])
 
                     operator_name = result.get('operator') or ''
                     if scan_method in ('operators', 'v2ray'):
@@ -372,26 +473,31 @@ def start_scan():
                         open_ports=json.dumps(result.get('open_ports', [])),
                         score=score,
                         operator=operator_name,
+                        colo=result.get('colo') or None,
                         scan_session_id=sess_id,
                     )
                     db.session.add(sr)
                     found += 1
+                    found_results.append(dict(result, score=score))
                     socketio.emit('scan_result', {
                         'ip': result['ip'],
                         'ping': round(result.get('ping', 0), 1) if result.get('ping') else None,
                         'open_ports': result.get('open_ports', []),
                         'score': round(score, 1),
                         'operator': operator_name,
+                        'colo': result.get('colo') or '',
                         'session_id': sess_id,
                         'is_v2ray': scan_method == 'v2ray',
                     }, namespace='/')
                     _emit_log('INFO', f'Found: {result["ip"]} ping={round(result.get("ping",0),1)}ms ports={result.get("open_ports",[])} op={operator_name}', sess_id)
                     try:
                         db.session.commit()
-                    except Exception:
+                    except Exception as e:
+                        logger.warning("Could not save scan result %s: %s", result['ip'], e)
                         db.session.rollback()
 
                 batch_num = 0
+                tried_ips = set()
                 global _user_stop_requested
                 _user_stop_requested = False
                 while True:
@@ -411,21 +517,22 @@ def start_scan():
                         max_total=batch_size,
                         shuffle=True,
                     )
+                    # Skip IPs already tried in earlier batches; small ranges run out.
+                    all_ips = [ip for ip in all_ips if str(ip) not in tried_ips]
                     if not all_ips:
-                        _emit_log('WARN', 'No more IPs to generate from ranges.', sess_id)
+                        _emit_log('INFO', 'All IPs in the given ranges have been tried.', sess_id)
                         break
+                    tried_ips.update(str(ip) for ip in all_ips)
 
                     _emit_log('INFO', f'Batch {batch_num}: scanning {len(all_ips)} IPs (target {target_count or "—"}, found {found} so far)', sess_id)
                     socketio.emit('scan_status', {
                         'status': 'scanning', 'total': total_scanned + len(all_ips), 'session_id': sess_id
                     }, namespace='/')
 
-                    _scanner.reset()
-
                     if scan_method == 'v2ray' and v2ray_parsed:
                         _v2ray_scanner.scan_ips(
                             v2ray_parsed, [str(ip) for ip in all_ips],
-                            timeout=min(8, ping_max / 1000.0 * 1.5),
+                            timeout=min(8, max(1.5, ping_max / 1000.0 * 1.5)),
                             progress_callback=on_progress,
                             result_callback=on_result,
                         )
@@ -452,6 +559,9 @@ def start_scan():
                 except Exception:
                     db.session.rollback()
 
+                if speed_opts['enabled'] and found_results and not _user_stop_requested:
+                    _run_speed_tests(sess_id, found_results, speed_opts)
+
                 elapsed = time.time() - start_time
                 sess = db.session.get(ScanSession, sess_id)
                 if sess:
@@ -460,7 +570,7 @@ def start_scan():
                     sess.duration = round(elapsed, 1)
                     if sess.status == 'running':
                         sess.status = 'completed'
-                    sess.completed_at = datetime.utcnow()
+                    sess.completed_at = utcnow()
                     db.session.commit()
 
                 _emit_log('INFO', f'Scan complete: {found}/{total_scanned} IPs found in {elapsed:.1f}s', sess_id)
@@ -483,10 +593,46 @@ def start_scan():
                     db.session.rollback()
                 socketio.emit('scan_error', {'error': str(e), 'session_id': sess_id}, namespace='/')
 
-    thread = threading.Thread(target=run_scan, daemon=True)
-    thread.start()
+    _scan_thread = threading.Thread(target=run_scan, daemon=True)
+    _scan_thread.start()
 
     return jsonify({'session_id': sess_id, 'status': 'started'})
+
+
+def _run_speed_tests(sess_id, found_results, opts):
+    """
+    Measure download speed of the best (lowest ping) found IPs one after another
+    (in parallel they would share the bandwidth and the numbers would be wrong).
+    """
+    candidates = sorted(found_results, key=lambda r: r.get('ping') or 1e9)[:opts['count']]
+    _emit_log('INFO', f'Speed test: {len(candidates)} IPs, {opts["size_kb"]} KB each', sess_id)
+    socketio.emit('scan_status', {'status': 'speed_testing', 'total': len(candidates),
+                                  'session_id': sess_id}, namespace='/')
+    for i, res in enumerate(candidates, 1):
+        if _user_stop_requested:
+            _emit_log('INFO', 'Speed test stopped by user.', sess_id)
+            break
+        speed = measure_download(res['ip'], size_kb=opts['size_kb'], url=opts['url'],
+                                 should_stop=lambda: _user_stop_requested)
+        res['speed'] = speed
+        score = SHScanner.calc_score(res)
+        row = ScanResult.query.filter_by(scan_session_id=sess_id, ip=res['ip']).first()
+        if row:
+            row.speed = speed
+            row.score = score
+            try:
+                db.session.commit()
+            except Exception as e:
+                logger.warning("Could not save speed for %s: %s", res['ip'], e)
+                db.session.rollback()
+        socketio.emit('scan_result_update', {
+            'ip': res['ip'], 'speed': speed, 'score': round(score, 1), 'session_id': sess_id,
+        }, namespace='/')
+        socketio.emit('scan_progress', {
+            'done': i, 'total': len(candidates), 'percent': round(i * 100.0 / len(candidates), 1),
+            'speed': 0, 'elapsed': 0, 'session_id': sess_id, 'phase': 'speed',
+        }, namespace='/')
+        _emit_log('INFO', f'Speed {res["ip"]}: ' + (f'{speed:.0f} KB/s' if speed else 'failed'), sess_id)
 
 
 @api_bp.route('/scan/stop', methods=['POST'])
@@ -499,7 +645,7 @@ def stop_scan():
         session = db.session.get(ScanSession, _active_session_id)
         if session and session.status == 'running':
             session.status = 'stopped'
-            session.completed_at = datetime.utcnow()
+            session.completed_at = utcnow()
             db.session.commit()
     return jsonify({'status': 'stopped'})
 
@@ -507,7 +653,7 @@ def stop_scan():
 @api_bp.route('/scan/results', methods=['GET'])
 def get_results():
     session_id = request.args.get('session_id', type=int)
-    limit = request.args.get('limit', 200, type=int)
+    limit = _to_int(request.args.get('limit'), 200, lo=1, hi=10000)
     q = ScanResult.query
     if session_id:
         q = q.filter_by(scan_session_id=session_id)
@@ -524,7 +670,7 @@ def get_sessions():
 @api_bp.route('/scan/logs', methods=['GET'])
 def get_logs():
     session_id = request.args.get('session_id', type=int)
-    limit = request.args.get('limit', 100, type=int)
+    limit = _to_int(request.args.get('limit'), 100, lo=1, hi=10000)
     q = ScanLog.query
     if session_id:
         q = q.filter_by(session_id=session_id)
@@ -535,8 +681,8 @@ def get_logs():
 # ========== Export ==========
 
 EXPORT_HEADERS = {
-    'fa': ('رتبه', 'آدرس IP', 'Ping', 'پورت\u200cها', 'امتیاز', 'اپراتور'),
-    'en': ('#', 'IP', 'Ping', 'Ports', 'Score', 'Operator'),
+    'fa': ('رتبه', 'آدرس IP', 'Ping', 'پورت\u200cها', 'امتیاز', 'اپراتور', 'دیتاسنتر', 'سرعت (KB/s)'),
+    'en': ('#', 'IP', 'Ping', 'Ports', 'Score', 'Operator', 'Colo', 'Speed (KB/s)'),
 }
 
 
@@ -581,6 +727,8 @@ def export_results(fmt):
             ws.cell(row=row_idx, column=4, value=ports_str)
             ws.cell(row=row_idx, column=5, value=round(r.score, 1) if r.score is not None else '')
             ws.cell(row=row_idx, column=6, value=(r.operator or ''))
+            ws.cell(row=row_idx, column=7, value=(r.colo or ''))
+            ws.cell(row=row_idx, column=8, value=round(r.speed, 1) if r.speed is not None else '')
         buf = BytesIO()
         wb.save(buf)
         buf.seek(0)
@@ -597,10 +745,11 @@ def export_results(fmt):
 
 @api_bp.route('/reset', methods=['POST'])
 def reset_data():
+    if _scan_running():
+        return jsonify({'error': 'Stop the running scan first.'}), 409
     ScanResult.query.delete()
-    ScanSession.query.delete()
-    ClosedIP.query.delete()
     ScanLog.query.delete()
+    ScanSession.query.delete()
     db.session.commit()
     return jsonify({'status': 'ok'})
 
@@ -650,6 +799,8 @@ def check_update():
             'current_version': current_version,
             'remote_version': remote_version,
             'update_available': update_available,
+            'can_self_update': bool(current_app.config.get('ALLOW_WEB_UPDATE')),
+            'download_url': current_app.config.get('RELEASES_URL', ''),
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 200
@@ -661,6 +812,14 @@ def do_update():
     import subprocess
     import sys
     import os
+
+    if not current_app.config.get('ALLOW_WEB_UPDATE', True):
+        if current_app.config.get('FROZEN'):
+            return jsonify({'error': 'Download the new version from the Releases page.',
+                            'download_url': current_app.config.get('RELEASES_URL', '')}), 403
+        return jsonify({'error': 'Web update is disabled on this server (ALLOW_WEB_UPDATE=false).'}), 403
+    if _scan_running():
+        return jsonify({'error': 'Stop the running scan before updating.'}), 409
 
     base_dir = current_app.config.get('BASE_DIR', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

@@ -1,14 +1,17 @@
 """
-SH IP Scanner V2.0 - Operator Definitions & Fetch (Linux Edition)
+CDN IP Scanner V2.0 - Operator Definitions & Fetch (Linux Edition)
 Author: shahinst
 
-Robust operator prefix fetching with retry, SSL fallback, and timeout handling.
+Robust operator prefix fetching with retry and timeout handling.
 """
 
+import ipaddress
 import time
 import logging
 import requests
 import urllib3
+
+from app.scanner.range_fetcher import ALLOW_INSECURE_FETCH
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -48,7 +51,7 @@ FETCH_RETRIES = 3
 
 
 def _robust_get(url, timeout=FETCH_TIMEOUT, retries=FETCH_RETRIES):
-    """HTTP GET with retry, SSL fallback, and error logging."""
+    """HTTP GET with retry and error logging (no insecure fallback unless ALLOW_INSECURE_FETCH)."""
     last_err = None
     verify = True
     for attempt in range(1, retries + 1):
@@ -59,8 +62,11 @@ def _robust_get(url, timeout=FETCH_TIMEOUT, retries=FETCH_RETRIES):
             return r
         except requests.exceptions.SSLError as e:
             logger.warning("SSL error on %s (attempt %d): %s", url, attempt, e)
-            verify = False
-            continue
+            last_err = e
+            if verify and ALLOW_INSECURE_FETCH:
+                verify = False
+                continue
+            break
         except (requests.exceptions.ConnectionError,
                 requests.exceptions.Timeout,
                 requests.exceptions.RequestException) as e:
@@ -82,7 +88,10 @@ def _normalize_ipv4_prefixes(prefixes):
             s = str(p).strip()
         if not s or ":" in s or "/" not in s:
             continue
-        out.append(s)
+        try:
+            out.append(str(ipaddress.IPv4Network(s, strict=False)))
+        except ValueError:
+            continue
     return out
 
 

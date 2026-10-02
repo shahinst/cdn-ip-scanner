@@ -7,9 +7,16 @@ Starts the Flask web application on a configurable port.
 Optimized for Linux server deployment.
 """
 
+# gevent must patch the stdlib (threading, socket, ssl, ...) before anything
+# else imports it; the scanner's worker threads then become greenlets and can
+# safely emit Socket.IO events through the gevent hub.
+from gevent import monkey
+monkey.patch_all()
+
 import os
 import sys
 import signal
+import ipaddress
 
 # Load .env from app directory first (so DB/settings work when run on server)
 try:
@@ -21,6 +28,15 @@ except Exception:
     pass
 
 import argparse
+
+
+def _is_loopback(host):
+    if host == 'localhost':
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def main():
@@ -42,10 +58,15 @@ def main():
     from app import create_app, socketio
     app = create_app()
 
+    if not _is_loopback(args.host) and not app.config.get('AUTH_ENABLED'):
+        print("WARNING: binding to a non-loopback address without APP_USERNAME/"
+              "APP_PASSWORD set — the scanner (including /api/do-update) will be "
+              "reachable by anyone on the network.", file=sys.stderr, flush=True)
+
     url = f"http://{args.host}:{args.port}"
     print("")
     print("=" * 48)
-    print("  CDN IP Scanner V 2.0 (Linux)")
+    print(f"  CDN IP Scanner V {app.config['VERSION']}")
     print("  Author: shahinst")
     print("-" * 48)
     print(f"  URL:    {url}")

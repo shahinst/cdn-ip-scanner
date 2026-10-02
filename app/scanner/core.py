@@ -18,7 +18,7 @@ import socket
 import ipaddress
 import requests
 import urllib3
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -29,6 +29,58 @@ HTTP_PORTS = {80, 8080, 2052, 2082, 2086, 2095}
 SH_TRACE_ATTEMPTS = 5        # 5 sequential requests per IP
 SH_TRACE_MIN_SUCCESS = 3     # need >= 3 successes out of 5
 SH_HOST_HEADER = "www.cloudflare.com"
+
+
+def is_cdn_response(headers, body=''):
+    """
+    True if an HTTP response really comes from a CDN edge (Cloudflare or Fastly).
+    `headers` must be a case-insensitive mapping or a dict with lowercase keys.
+    Any random server with an open port must NOT pass this check.
+    """
+    body = body or ''
+    if 'fl=' in body and 'colo=' in body:  # Cloudflare /cdn-cgi/trace body
+        return True
+    server = (headers.get('server') or '').lower()
+    via = (headers.get('via') or '').lower()
+    if 'cf-ray' in headers or 'cloudflare' in server:
+        return True
+    if ('x-fastly-request-id' in headers or 'fastly' in server or 'fastly' in via
+            or 'varnish' in via or 'x-served-by' in headers):
+        return True
+    return False
+
+
+def extract_colo(headers, body=''):
+    """
+    Edge data-center code (e.g. 'FRA') of a CDN response, or '' if unknown.
+    Cloudflare: `colo=` line of /cdn-cgi/trace or the `cf-ray: <id>-<COLO>` header.
+    Fastly: last part of `x-served-by: cache-fra19125-FRA`.
+    """
+    for line in (body or '').splitlines():
+        if line.startswith('colo='):
+            return line[5:].strip().upper()[:10]
+    ray = headers.get('cf-ray') or ''
+    if '-' in ray:
+        return ray.rsplit('-', 1)[1].strip().upper()[:10]
+    served_by = (headers.get('x-served-by') or '').split(',')[-1].strip()
+    if '-' in served_by:
+        return served_by.rsplit('-', 1)[1].strip().upper()[:10]
+    return ''
+
+
+def iter_completed(futures, should_stop, poll_interval=2.0):
+    """
+    Yield futures as they complete, waking up every `poll_interval` seconds to
+    check `should_stop()`. Unlike as_completed(timeout=...), a poll timeout does
+    not end the iteration.
+    """
+    pending = set(futures)
+    while pending:
+        if should_stop():
+            return
+        done, pending = wait(pending, timeout=poll_interval, return_when=FIRST_COMPLETED)
+        for f in done:
+            yield f
 
 
 def _sh_trace_url(ip_str, port):
@@ -198,7 +250,7 @@ class SHScanner:
         FIX 2: max_total_sec حداقل 8 ثانیه — قبلاً با ping_max پایین
                 ممکن بود خیلی کوتاه بشه.
 
-        Returns (is_valid: bool, avg_latency_ms: float).
+        Returns (is_valid: bool, avg_latency_ms: float, colo: str).
         """
         url = _sh_trace_url(ip_str, port)
 
@@ -225,6 +277,7 @@ class SHScanner:
         total_start = time.time()
         successes = 0
         aborted = False
+        colo = ''
 
         # Session for connection reuse (TCP+TLS only once per IP)
         session = requests.Session()
@@ -253,14 +306,22 @@ class SHScanner:
                     timeout_sec = min(4.0, max(1.5, raw_timeout))
 
                 try:
-                    r = session.get(url, timeout=timeout_sec, allow_redirects=False)
-                    successes += 1
-                except requests.exceptions.Timeout:
+                    r = session.get(url, timeout=timeout_sec, allow_redirects=False, stream=True)
+                except requests.exceptions.RequestException:
+                    aborted = True  # Timeout / connection failure → no point retrying same IP
+                    continue
+                try:
+                    if is_cdn_response(r.headers):
+                        # read the (tiny) trace body so the connection is reused
+                        body = r.content[:4096].decode('utf-8', errors='ignore')
+                        colo = colo or extract_colo(r.headers, body)
+                        successes += 1
+                    else:
+                        aborted = True  # Not a CDN edge (some random server with the port open)
+                except requests.exceptions.RequestException:
                     aborted = True
-                except requests.exceptions.ConnectionError:
-                    aborted = True  # Connection failed → no point retrying same IP
-                except Exception:
-                    successes += 1
+                finally:
+                    r.close()
         finally:
             try:
                 session.close()
@@ -271,7 +332,7 @@ class SHScanner:
         avg_latency = total_time_ms / SH_TRACE_ATTEMPTS
 
         is_valid = (successes >= SH_TRACE_MIN_SUCCESS) and (avg_latency <= max_latency_ms)
-        return is_valid, avg_latency
+        return is_valid, avg_latency, colo
 
     def _tcp_connect(self, ip_str, port, timeout_sec):
         """Quick TCP connect to check if port is open."""
@@ -313,8 +374,8 @@ class SHScanner:
             return None
 
         # TCP passed → full 5-sequential-attempt verification
-        result = {'ip': ip_str, 'open_ports': [], 'ping': None}
-        is_valid, avg_latency = self._sequential_trace_check(
+        result = {'ip': ip_str, 'open_ports': [], 'ping': None, 'colo': ''}
+        is_valid, avg_latency, colo = self._sequential_trace_check(
             ip_str, primary_port, self.max_latency_ms
         )
 
@@ -323,6 +384,7 @@ class SHScanner:
             return None
 
         result['ping'] = avg_latency
+        result['colo'] = colo
         result['open_ports'].append(primary_port)
 
         # Quick TCP scan on remaining ports
@@ -340,32 +402,19 @@ class SHScanner:
         """
         Scan a batch of IPs in parallel.
         Calls result_callback(result) immediately when each valid IP is found.
-        Stops quickly when _stop_flag is set (check every ~2s via short timeout).
+        Stops quickly when _stop_flag is set (checked every ~2s); in-flight checks
+        are abandoned instead of waited for.
         """
         results = []
         n = len(ips)
         n_completed = 0
-        wait_timeout = 2.0  # check _stop_flag every 2 seconds
 
         self._log('INFO', f'Batch scan started: {n} IPs, {len(ports)} ports, {self.max_workers} workers')
 
-        with ThreadPoolExecutor(max_workers=self.max_workers) as ex:
-            futures = {ex.submit(self.check, ip, ports): ip for ip in ips}
-            iterator = as_completed(futures, timeout=wait_timeout)
-            while True:
-                if self._stop_flag:
-                    for f in futures:
-                        try:
-                            f.cancel()
-                        except Exception:
-                            pass
-                    break
-                try:
-                    future = next(iterator)
-                except StopIteration:
-                    break
-                except FuturesTimeoutError:
-                    continue
+        ex = ThreadPoolExecutor(max_workers=self.max_workers)
+        try:
+            futures = [ex.submit(self.check, ip, ports) for ip in ips]
+            for future in iter_completed(futures, lambda: self._stop_flag):
                 n_completed += 1
                 if progress_callback:
                     try:
@@ -376,22 +425,24 @@ class SHScanner:
                         pass
                 try:
                     result = future.result()
-                    if result:
-                        results.append(result)
-                        if result_callback:
-                            try:
-                                result_callback(result)
-                            except Exception:
-                                pass
                 except Exception:
-                    pass
+                    continue
+                if result:
+                    results.append(result)
+                    if result_callback:
+                        try:
+                            result_callback(result)
+                        except Exception:
+                            pass
+        finally:
+            ex.shutdown(wait=not self._stop_flag, cancel_futures=True)
 
         self._log('INFO', f'Batch scan completed: {len(results)}/{n} IPs found')
         return results
 
     @staticmethod
     def calc_score(result):
-        """Calculate score based on ping and open ports."""
+        """Calculate score based on ping, open ports and (if measured) download speed."""
         score = 0.0
         ping_val = result.get('ping')
         if ping_val is not None:
@@ -415,4 +466,13 @@ class SHScanner:
             score += 4
         if 8443 in open_ports:
             score += 4
+        speed = result.get('speed') or 0  # KB/s
+        if speed >= 5000:
+            score += 20
+        elif speed >= 2000:
+            score += 15
+        elif speed >= 1000:
+            score += 10
+        elif speed >= 300:
+            score += 5
         return max(0.0, min(100.0, score))

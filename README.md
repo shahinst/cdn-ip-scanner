@@ -2,10 +2,10 @@
   <img src="image/logo.png" alt="CDN IP Scanner Logo" width="80" height="80">
 </p>
 
-<h1 align="center">CDN IP Scanner V2.0</h1>
+<h1 align="center">CDN IP Scanner V2.1</h1>
 
 <p align="center">
-  <b>High Accuracy &bull; Ultra Fast &bull; AI Powered</b>
+  <b>High Accuracy &bull; Ultra Fast &bull; Real-Time</b>
 </p>
 
 <p align="center">
@@ -36,19 +36,23 @@
 
 **CDN IP Scanner** is a powerful, web-based tool for scanning and finding the fastest CDN (Content Delivery Network) IP addresses. It helps users discover clean, low-latency IPs from providers like **Cloudflare**, **Fastly**, and other CDN networks.
 
-The scanner uses a proven **5-attempt verification method** with `/cdn-cgi/trace` endpoint checking, ensuring only genuinely responsive IPs are reported. Combined with AI-powered optimization and multi-threaded scanning, it delivers results faster and more accurately than any other tool.
+The scanner uses a proven **5-attempt verification method** with `/cdn-cgi/trace` endpoint checking, ensuring only genuinely responsive IPs are reported. Combined with fair round-robin sampling across all ranges and highly concurrent scanning, it finds working IPs quickly.
 
 ### Key Features
 
 | Feature | Description |
 |---------|-------------|
 | **Multi-Source Range Fetching** | Fetch CDN IP ranges from Cloudflare API, ASN, GitHub, Fastly verified list |
-| **5-Attempt Verification** | Each IP is tested 5 times with connection reuse — minimum 3/5 success required |
+| **5-Attempt Verification** | Each IP is tested 5 times with connection reuse — minimum 3/5 genuine CDN-edge responses required |
 | **Real-Time Results** | Results appear instantly via WebSocket as each IP is found |
-| **Operator Detection** | Test CDN IPs against Iranian (Irancell, MCI, Rightel, Shuttle), Chinese, and Russian operators |
+| **Operator Labeling** | Label results with an Iranian (Irancell, MCI, Rightel, Shuttle), Chinese, or Russian operator — tests run from the server's own network, so run the scanner on a server connected through that operator |
 | **V2Ray Config Support** | Parse and test vless://, vmess://, trojan:// configs with automatic IP replacement |
 | **4 Speed Modes** | Hyper (20%), Turbo (40%), Ultra (60%), Deep (80%) — control resource usage |
-| **AI Optimization** | Smart IP sampling and range prioritization for faster discovery |
+| **Fair Sampling** | Round-robin /24 sampling so every range is represented |
+| **Data Center (Colo)** | Shows which CDN edge answered (e.g. FRA, IST, AMS) for every IP |
+| **Download Speed Test** | Optional real download test through the best IPs; speed counts in the score |
+| **Subscription & QR** | V2Ray scans: one-click subscription link for v2rayN / v2rayNG / Hiddify, "copy all configs", and a QR code per IP for your phone |
+| **Desktop App** | Native window on Windows and macOS, browser mode on Linux — no Python needed |
 | **Multi-Language** | Full support for English, فارسی (Persian), 中文 (Chinese), Русский (Russian) |
 | **Dark/Light Theme** | Beautiful modern UI with dark mode support |
 | **Export Results** | Save results as JSON, Excel (.xlsx), or Text (IPs only) |
@@ -71,7 +75,7 @@ The scanner uses a proven **5-attempt verification method** with `/cdn-cgi/trace
 ### Scan Methods
 
 - **Cloud Scan** — Direct CDN IP scanning with TCP pre-filter + 5-attempt HTTP verification
-- **Operator Scan** — Test which CDN IPs work best on your specific ISP/operator
+- **Operator Scan** — Find CDN IPs that work on a given ISP/operator (the scan runs from the server, so the server must be on that operator's network)
 - **V2Ray Scan** — Paste a V2Ray config and find working IPs for it automatically
 
 ### System Requirements
@@ -92,9 +96,20 @@ You can download pre-built versions for all platforms from the **Releases** page
 
 | Platform | File | Description |
 |----------|------|-------------|
-| **Windows** | `CDN-IP-Scanner.V2.0.Windows.zip` | Standalone exe — just extract and run, no Python needed |
-| **Mac** | `CDN-IP-Scanner.V2.0.Mac.zip` | Build kit — run `build.sh` on Mac |
+| **Windows (64-bit)** | `CDN-IP-Scanner-<version>-windows-x64.zip` | Extract and run `CDN-IP-Scanner.exe` — no Python needed |
+| **macOS (Apple Silicon)** | `CDN-IP-Scanner-<version>-macos-arm64.zip` | M1/M2/M3/M4 Macs |
+| **macOS (Intel)** | `CDN-IP-Scanner-<version>-macos-x64.zip` | Intel Macs |
+| **Linux (x64 / ARM64)** | `CDN-IP-Scanner-<version>-linux-x64.tar.gz` / `linux-arm64` | Extract and run `./CDN-IP-Scanner/CDN-IP-Scanner` (opens your browser) |
 | **Source** | `Source code (zip/tar.gz)` | Main source code for developers |
+
+Every release includes `SHA256SUMS.txt` to verify the downloads.
+
+> **First start:** Windows SmartScreen may show "Windows protected your PC" → *More info* → *Run anyway*.
+> On macOS, if the app "can't be opened", right-click it → *Open*, or run `xattr -dr com.apple.quarantine CDN-IP-Scanner.app`.
+> The builds are not code-signed yet.
+
+Data (database, settings, `scanner.log`) is stored in `%APPDATA%\CDN-IP-Scanner` (Windows),
+`~/Library/Application Support/CDN-IP-Scanner` (macOS) or `~/.local/share/cdn-ip-scanner` (Linux).
 
 ---
 
@@ -156,6 +171,48 @@ pip install -r requirements.txt
 python run.py --port 8080
 ```
 
+### Desktop App from Source
+
+```bash
+pip install -r requirements-desktop.txt
+python desktop.py            # native window (falls back to the browser)
+python desktop.py --browser  # always use the browser
+```
+
+### Building the Executables
+
+```bash
+pip install -r requirements-desktop.txt
+python packaging/build.py        # → release/CDN-IP-Scanner-<version>-<platform>.zip|tar.gz
+python packaging/smoke_test.py   # starts the built app and checks it answers
+```
+
+GitHub Actions builds and smoke-tests Windows, macOS (arm64 + Intel) and Linux (x64 + arm64)
+on every pull request. To publish a release, update the `version` file and push a matching tag
+(e.g. `git tag v2.1 && git push origin v2.1`): the workflow uploads all archives to a new GitHub Release.
+
+### Environment Variables (`.env`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SECRET_KEY` | random, stored in `data/.secret_key` | Flask secret key |
+| `DATABASE_URL` | SQLite in `data/scanner.db` | e.g. `mysql+pymysql://user:pass@host/db` |
+| `APP_USERNAME` / `APP_PASSWORD` | empty | Built-in HTTP basic auth (use when not behind nginx auth) |
+| `CDN_SCANNER_DATA_DIR` | `./data` (source) / per-user folder (desktop app) | Where the database, secret key and log are stored |
+| `CDN_SCANNER_PORT` | `8765` | Port used by the desktop app |
+| `CORS_ORIGINS` | empty (same-origin only) | Comma-separated extra origins allowed to call the API/WebSocket |
+| `ALLOW_WEB_UPDATE` | `true` | Set to `false` to disable the in-app "Update" button (git pull + restart) |
+| `ALLOW_INSECURE_FETCH` | `false` | Allow fetching ranges without TLS certificate verification (not recommended) |
+
+> ⚠️ If you run with `--host 0.0.0.0`, set `APP_USERNAME`/`APP_PASSWORD` or put the app behind an authenticated reverse proxy.
+
+### Running Tests
+
+```bash
+pip install pytest
+python -m pytest
+```
+
 ---
 
 ## 🎬 Video Tutorial
@@ -174,19 +231,23 @@ Watch the full installation and usage tutorial on YouTube:
 
 **CDN IP Scanner** یک ابزار قدرتمند و تحت وب برای اسکن و پیدا کردن سریع‌ترین آی‌پی‌های CDN (شبکه توزیع محتوا) است. این ابزار به کاربران کمک می‌کند تا آی‌پی‌های تمیز و با تأخیر پایین از ارائه‌دهندگانی مانند **Cloudflare**، **Fastly** و سایر شبکه‌های CDN را پیدا کنند.
 
-اسکنر از یک روش **تأیید ۵ مرحله‌ای** اثبات‌شده با بررسی endpoint مسیر `/cdn-cgi/trace` استفاده می‌کند و فقط آی‌پی‌هایی که واقعاً پاسخ‌گو هستند را گزارش می‌دهد. همراه با بهینه‌سازی هوش مصنوعی و اسکن چندنخی، نتایج را سریع‌تر و دقیق‌تر از هر ابزار دیگری ارائه می‌دهد.
+اسکنر از یک روش **تأیید ۵ مرحله‌ای** اثبات‌شده با بررسی endpoint مسیر `/cdn-cgi/trace` استفاده می‌کند و فقط آی‌پی‌هایی که واقعاً پاسخ‌گو هستند را گزارش می‌دهد. همراه با نمونه‌برداری منصفانه از همه رنج‌ها و اسکن هم‌زمان، آی‌پی‌های سالم را سریع پیدا می‌کند.
 
 ### ویژگی‌های کلیدی
 
 | ویژگی | توضیحات |
 |-------|---------|
 | **دریافت رنج از چندین منبع** | دریافت رنج آی‌پی CDN از API کلودفلر، ASN، گیت‌هاب، فستلی |
-| **تأیید ۵ مرحله‌ای** | هر آی‌پی ۵ بار با استفاده مجدد از اتصال تست می‌شود — حداقل ۳ از ۵ موفقیت لازم است |
+| **تأیید ۵ مرحله‌ای** | هر آی‌پی ۵ بار با استفاده مجدد از اتصال تست می‌شود — حداقل ۳ پاسخ واقعی از سرور CDN از ۵ تلاش لازم است |
 | **نتایج لحظه‌ای** | نتایج از طریق WebSocket بلافاصله پس از پیدا شدن هر آی‌پی نمایش داده می‌شود |
-| **تشخیص اپراتور** | تست آی‌پی‌های CDN روی اپراتورهای ایرانی (ایرانسل، همراه اول، رایتل، شاتل)، چینی و روسی |
+| **برچسب اپراتور** | برچسب‌گذاری نتایج با اپراتورهای ایرانی (ایرانسل، همراه اول، رایتل، شاتل)، چینی و روسی — تست از شبکه خود سرور انجام می‌شود، پس اسکنر را روی سروری اجرا کنید که از طریق همان اپراتور به اینترنت وصل است |
 | **پشتیبانی V2Ray** | پارس و تست کانفیگ‌های vless://، vmess://، trojan:// با جایگزینی خودکار آی‌پی |
 | **۴ حالت سرعت** | هایپر (۲۰%)، توربو (۴۰%)، اولترا (۶۰%)، دیپ (۸۰%) — کنترل مصرف منابع |
-| **بهینه‌سازی هوش مصنوعی** | نمونه‌برداری هوشمند و اولویت‌بندی رنج برای کشف سریع‌تر |
+| **نمونه‌برداری منصفانه** | نمونه‌برداری چرخشی از بلوک‌های /24 تا همه رنج‌ها پوشش داده شوند |
+| **دیتاسنتر (Colo)** | نمایش دیتاسنتر CDN که به هر آی‌پی پاسخ داده (مثلاً FRA، IST، AMS) |
+| **تست سرعت دانلود** | تست واقعی سرعت دانلود بهترین آی‌پی‌ها (اختیاری) و تأثیر آن در امتیاز |
+| **ساب‌اسکریپشن و QR** | در اسکن V2Ray: لینک ساب‌اسکریپشن برای v2rayN / v2rayNG / Hiddify، کپی همه کانفیگ‌ها و QR کد هر آی‌پی برای گوشی |
+| **برنامه دسکتاپ** | پنجره مستقل در ویندوز و مک، حالت مرورگر در لینوکس — بدون نیاز به پایتون |
 | **چندزبانه** | پشتیبانی کامل از فارسی، English، 中文، Русский |
 | **تم تاریک/روشن** | رابط کاربری مدرن و زیبا با پشتیبانی حالت تاریک |
 | **خروجی نتایج** | ذخیره نتایج به صورت JSON، اکسل (xlsx.) یا متن (فقط آی‌پی) |
@@ -215,7 +276,7 @@ Watch the full installation and usage tutorial on YouTube:
 <div dir="rtl">
 
 - **اسکن کلود** — اسکن مستقیم آی‌پی CDN با پیش‌فیلتر TCP و تأیید HTTP پنج‌مرحله‌ای
-- **اسکن اپراتور** — بررسی اینکه کدام آی‌پی‌های CDN روی اپراتور شما بهتر کار می‌کنند
+- **اسکن اپراتور** — پیدا کردن آی‌پی‌های CDN که روی یک اپراتور کار می‌کنند (اسکن از خود سرور انجام می‌شود، پس سرور باید روی شبکه همان اپراتور باشد)
 - **اسکن V2Ray** — کانفیگ V2Ray خود را قرار دهید و آی‌پی‌های فعال را به صورت خودکار پیدا کنید
 
 </div>
@@ -232,9 +293,16 @@ Watch the full installation and usage tutorial on YouTube:
 
 | پلتفرم | فایل | توضیحات |
 |--------|------|---------|
-| **ویندوز** | `CDN-IP-Scanner.V2.0.Windows.zip` | فایل exe مستقل — فقط استخراج و اجرا کنید، نیاز به پایتون نیست |
-| **مک** | `CDN-IP-Scanner.V2.0.Mac.zip` | کیت ساخت — فایل build.sh را روی مک اجرا کنید |
+| **ویندوز (۶۴ بیتی)** | `CDN-IP-Scanner-<version>-windows-x64.zip` | استخراج کنید و `CDN-IP-Scanner.exe` را اجرا کنید — بدون نیاز به پایتون |
+| **مک (Apple Silicon)** | `CDN-IP-Scanner-<version>-macos-arm64.zip` | مک‌های M1/M2/M3/M4 |
+| **مک (اینتل)** | `CDN-IP-Scanner-<version>-macos-x64.zip` | مک‌های اینتلی |
+| **لینوکس (x64 / ARM64)** | `CDN-IP-Scanner-<version>-linux-x64.tar.gz` / `linux-arm64` | استخراج و اجرای `./CDN-IP-Scanner/CDN-IP-Scanner` (مرورگر باز می‌شود) |
 | **سورس** | `Source code (zip/tar.gz)` | کد منبع اصلی برای توسعه‌دهندگان |
+
+فایل `SHA256SUMS.txt` در هر نسخه برای بررسی صحت دانلود قرار دارد.
+
+> **اولین اجرا:** اگر ویندوز پیام «Windows protected your PC» داد، روی *More info* و بعد *Run anyway* بزنید.
+> در مک اگر برنامه باز نشد، روی آن راست‌کلیک کرده و *Open* را بزنید، یا دستور `xattr -dr com.apple.quarantine CDN-IP-Scanner.app` را اجرا کنید.
 
 </div>
 
@@ -307,7 +375,7 @@ bash /opt/cdn-ip-scanner/uninstall.sh
 | **Database** | SQLite (default) / MySQL / MariaDB |
 | **WebSocket** | Socket.IO (real-time results) |
 | **Web Server** | Nginx (reverse proxy) |
-| **Scanning** | ThreadPoolExecutor, /cdn-cgi/trace verification |
+| **Scanning** | ThreadPoolExecutor (gevent greenlets), /cdn-cgi/trace verification |
 | **Export** | openpyxl (Excel), JSON, Plain Text |
 
 ---
@@ -316,7 +384,10 @@ bash /opt/cdn-ip-scanner/uninstall.sh
 
 ```
 cdn-ip-scanner/
-├── run.py                  # Application entry point
+├── run.py                  # Web server entry point
+├── desktop.py              # Desktop app launcher (native window / browser)
+├── packaging/              # PyInstaller build + smoke test scripts
+├── .github/workflows/      # CI (tests) and multi-platform build & release
 ├── install.sh              # Smart Linux installer
 ├── requirements.txt        # Python dependencies
 ├── version                 # Version file
@@ -331,8 +402,8 @@ cdn-ip-scanner/
     │   ├── core.py         # Scan engine (5-attempt verification)
     │   ├── range_fetcher.py # CDN range fetcher (multi-source)
     │   ├── operators.py    # ISP operator definitions & fetch
-    │   ├── v2ray.py        # V2Ray config parser & scanner
-    │   └── ai_optimizer.py # AI-powered range optimization
+    │   ├── speedtest.py    # Download speed test through a CDN IP
+    │   └── v2ray.py        # V2Ray config parser & scanner
     ├── static/
     │   ├── css/style.css   # Modern responsive design
     │   ├── js/app.js       # Frontend application
@@ -342,6 +413,7 @@ cdn-ip-scanner/
         ├── base.html       # Base template
         ├── index.html      # Language selection page
         └── scanner.html    # Main scanner interface
+tests/                      # pytest test suite
 ```
 
 ---
