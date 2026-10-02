@@ -262,21 +262,29 @@ function addLog(level, message) {
     container.scrollTop = container.scrollHeight;
 }
 
+// Escape untrusted text before putting it into innerHTML
+function escapeHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // ===== Results Table =====
 function addResultRow(data) {
     const tbody = document.getElementById('resultsBody');
     if (!tbody) return;
     const row = document.createElement('tr');
-    const ports = (data.open_ports || []).map(p => p + '\u2705').join(' ');
+    const ports = (data.open_ports || []).map(p => escapeHtml(p) + '\u2705').join(' ');
     const ping = data.ping ? localNum(Math.round(data.ping)) + ' ms' : '\u2014';
     const score = data.score ? localNum(data.score.toFixed(0)) + '/' + localNum('100') : '\u2014';
     const isV2ray = data.is_v2ray === true;
     const showOperator = currentScanMethod !== 'cloud';
-    const operatorText = data.operator || '\u2014';
+    const operatorText = escapeHtml(data.operator || '\u2014');
+    const ipText = escapeHtml(data.ip);
 
     let cells =
         '<td>' + localNum('#' + resultCount) + '</td>' +
-        '<td class="ip-cell" data-ip="' + data.ip + '">' + data.ip + '</td>' +
+        '<td class="ip-cell" data-ip="' + ipText + '">' + ipText + '</td>' +
         '<td>' + ping + '</td>' +
         '<td>' + (ports || '\u2014') + '</td>' +
         '<td>' + score + '</td>';
@@ -284,7 +292,7 @@ function addResultRow(data) {
         cells += '<td>' + operatorText + '</td>';
     }
     if (isV2ray) {
-        cells += '<td class="download-col"><button type="button" class="btn btn-sm btn-download" data-ip="' + data.ip + '">' + (lang === 'fa' ? '\u062F\u0627\u0646\u0644\u0648\u062F' : 'Download') + '</button></td>';
+        cells += '<td class="download-col"><button type="button" class="btn btn-sm btn-download" data-ip="' + ipText + '">' + (lang === 'fa' ? '\u062F\u0627\u0646\u0644\u0648\u062F' : 'Download') + '</button></td>';
     }
     row.innerHTML = cells;
     row.querySelector('.ip-cell').addEventListener('click', () => {
@@ -442,15 +450,19 @@ async function startScan() {
         v2ray_config: v2rayConfig,
         log_enabled: logEnabled,
         debug_enabled: document.getElementById('settingDebug')?.checked || false,
-        clear_previous: true,
     });
 
-    if (data.session_id) {
-        sessionId = data.session_id;
-        addLog('INFO', 'Session created: #' + data.session_id);
-    } else if (data.error) {
-        addLog('ERROR', data.error);
+    if (data.error || !data.session_id) {
+        addLog('ERROR', data.error || 'Could not start scan');
+        if (data.error) showToast(data.error);
+        isScanning = false;
+        clearInterval(timerInterval);
+        document.getElementById('btnStart').disabled = false;
+        document.getElementById('btnStop').disabled = true;
+        return;
     }
+    sessionId = data.session_id;
+    addLog('INFO', 'Session created: #' + data.session_id);
 }
 
 async function stopScan() {
@@ -516,11 +528,11 @@ async function parseV2RayConfig() {
     const el = document.getElementById('v2rayParsed');
     if (data.error) { el.textContent = 'Error: ' + data.error; }
     else {
-        el.innerHTML = '<strong>Protocol:</strong> ' + data.protocol + '<br>' +
-            '<strong>IP:</strong> ' + data.ip + '<br>' +
-            '<strong>Port:</strong> ' + data.port + '<br>' +
-            '<strong>SNI:</strong> ' + (data.params?.sni || '\u2014') + '<br>' +
-            '<strong>Host:</strong> ' + (data.params?.host || '\u2014');
+        el.innerHTML = '<strong>Protocol:</strong> ' + escapeHtml(data.protocol) + '<br>' +
+            '<strong>IP:</strong> ' + escapeHtml(data.ip) + '<br>' +
+            '<strong>Port:</strong> ' + escapeHtml(data.port) + '<br>' +
+            '<strong>SNI:</strong> ' + escapeHtml(data.params?.sni || '\u2014') + '<br>' +
+            '<strong>Host:</strong> ' + escapeHtml(data.params?.host || '\u2014');
     }
     el.classList.remove('hidden');
 }
@@ -620,7 +632,7 @@ function showUpdateModal(version) {
             '<div class="modal-header"><h2>' + t('update_btn') + '</h2>' +
                 '<button class="modal-close" id="closeUpdate">&times;</button></div>' +
             '<div class="modal-body" style="text-align:center">' +
-                '<p style="font-size:1rem;margin-bottom:1rem">' + t('update_confirm').replace('{v}', version) + '</p>' +
+                '<p style="font-size:1rem;margin-bottom:1rem">' + escapeHtml(t('update_confirm').replace('{v}', version)) + '</p>' +
                 '<div id="updateProgressWrap" class="hidden" style="margin:1rem 0">' +
                     '<div class="progress-bar-outer"><div class="progress-bar-inner" id="updateProgressBar" style="width:0%"></div></div>' +
                     '<p id="updateProgressText" style="font-size:0.8rem;color:var(--muted);margin-top:0.5rem"></p>' +

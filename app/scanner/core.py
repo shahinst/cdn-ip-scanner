@@ -18,7 +18,7 @@ import socket
 import ipaddress
 import requests
 import urllib3
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -29,6 +29,40 @@ HTTP_PORTS = {80, 8080, 2052, 2082, 2086, 2095}
 SH_TRACE_ATTEMPTS = 5        # 5 sequential requests per IP
 SH_TRACE_MIN_SUCCESS = 3     # need >= 3 successes out of 5
 SH_HOST_HEADER = "www.cloudflare.com"
+
+
+def is_cdn_response(headers, body=''):
+    """
+    True if an HTTP response really comes from a CDN edge (Cloudflare or Fastly).
+    `headers` must be a case-insensitive mapping or a dict with lowercase keys.
+    Any random server with an open port must NOT pass this check.
+    """
+    body = body or ''
+    if 'fl=' in body and 'colo=' in body:  # Cloudflare /cdn-cgi/trace body
+        return True
+    server = (headers.get('server') or '').lower()
+    via = (headers.get('via') or '').lower()
+    if 'cf-ray' in headers or 'cloudflare' in server:
+        return True
+    if ('x-fastly-request-id' in headers or 'fastly' in server or 'fastly' in via
+            or 'varnish' in via or 'x-served-by' in headers):
+        return True
+    return False
+
+
+def iter_completed(futures, should_stop, poll_interval=2.0):
+    """
+    Yield futures as they complete, waking up every `poll_interval` seconds to
+    check `should_stop()`. Unlike as_completed(timeout=...), a poll timeout does
+    not end the iteration.
+    """
+    pending = set(futures)
+    while pending:
+        if should_stop():
+            return
+        done, pending = wait(pending, timeout=poll_interval, return_when=FIRST_COMPLETED)
+        for f in done:
+            yield f
 
 
 def _sh_trace_url(ip_str, port):
@@ -253,14 +287,20 @@ class SHScanner:
                     timeout_sec = min(4.0, max(1.5, raw_timeout))
 
                 try:
-                    r = session.get(url, timeout=timeout_sec, allow_redirects=False)
-                    successes += 1
-                except requests.exceptions.Timeout:
+                    r = session.get(url, timeout=timeout_sec, allow_redirects=False, stream=True)
+                except requests.exceptions.RequestException:
+                    aborted = True  # Timeout / connection failure → no point retrying same IP
+                    continue
+                try:
+                    if is_cdn_response(r.headers):
+                        r.content  # read the (tiny) trace body so the connection is reused
+                        successes += 1
+                    else:
+                        aborted = True  # Not a CDN edge (some random server with the port open)
+                except requests.exceptions.RequestException:
                     aborted = True
-                except requests.exceptions.ConnectionError:
-                    aborted = True  # Connection failed → no point retrying same IP
-                except Exception:
-                    successes += 1
+                finally:
+                    r.close()
         finally:
             try:
                 session.close()
@@ -340,32 +380,19 @@ class SHScanner:
         """
         Scan a batch of IPs in parallel.
         Calls result_callback(result) immediately when each valid IP is found.
-        Stops quickly when _stop_flag is set (check every ~2s via short timeout).
+        Stops quickly when _stop_flag is set (checked every ~2s); in-flight checks
+        are abandoned instead of waited for.
         """
         results = []
         n = len(ips)
         n_completed = 0
-        wait_timeout = 2.0  # check _stop_flag every 2 seconds
 
         self._log('INFO', f'Batch scan started: {n} IPs, {len(ports)} ports, {self.max_workers} workers')
 
-        with ThreadPoolExecutor(max_workers=self.max_workers) as ex:
-            futures = {ex.submit(self.check, ip, ports): ip for ip in ips}
-            iterator = as_completed(futures, timeout=wait_timeout)
-            while True:
-                if self._stop_flag:
-                    for f in futures:
-                        try:
-                            f.cancel()
-                        except Exception:
-                            pass
-                    break
-                try:
-                    future = next(iterator)
-                except StopIteration:
-                    break
-                except FuturesTimeoutError:
-                    continue
+        ex = ThreadPoolExecutor(max_workers=self.max_workers)
+        try:
+            futures = [ex.submit(self.check, ip, ports) for ip in ips]
+            for future in iter_completed(futures, lambda: self._stop_flag):
                 n_completed += 1
                 if progress_callback:
                     try:
@@ -376,15 +403,17 @@ class SHScanner:
                         pass
                 try:
                     result = future.result()
-                    if result:
-                        results.append(result)
-                        if result_callback:
-                            try:
-                                result_callback(result)
-                            except Exception:
-                                pass
                 except Exception:
-                    pass
+                    continue
+                if result:
+                    results.append(result)
+                    if result_callback:
+                        try:
+                            result_callback(result)
+                        except Exception:
+                            pass
+        finally:
+            ex.shutdown(wait=not self._stop_flag, cancel_futures=True)
 
         self._log('INFO', f'Batch scan completed: {len(results)}/{n} IPs found')
         return results
