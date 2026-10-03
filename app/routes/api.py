@@ -47,6 +47,7 @@ SETTINGS_DEFAULTS = {
     'speed_test': 'false', 'speed_test_size': '1024', 'speed_test_count': '10',
     'speed_test_url': DEFAULT_SPEED_TEST_URL,
     'xray_test': 'false', 'xray_test_count': '20', 'xray_test_url': xray_mod.DEFAULT_TEST_URL,
+    'profile': 'custom',  # last scan profile chosen in the UI
     'monitor_interval': '0',  # minutes between favorite-IP checks (0 = off)
     'telegram_token': '', 'telegram_chat_id': '', 'telegram_proxy': '',
 }
@@ -238,18 +239,50 @@ def build_v2ray_config():
     return jsonify({'config': built})
 
 
-def _session_configs(session_id, limit):
-    """Rebuilt V2Ray configs (best score first) for the IPs found by a V2Ray scan."""
+def _session_ips(session_id, limit):
+    """(parsed template config, best IPs first) of a V2Ray scan, or (None, None)."""
     sess = db.session.get(ScanSession, session_id)
     if not sess or not sess.v2ray_config:
-        return None
+        return None, None
     parsed = V2RayConfigParser.parse(sess.v2ray_config)
     if not parsed:
-        return None
+        return None, None
     rows = (ScanResult.query.filter_by(scan_session_id=session_id)
             .filter(db.or_(ScanResult.real_delay.is_(None), ScanResult.real_delay >= 0))  # skip failed real tests
             .order_by(ScanResult.score.desc()).limit(limit).all())
-    return [V2RayConfigParser.rebuild_config(parsed, r.ip, name_suffix=f' | {r.ip}') for r in rows]
+    return parsed, [r.ip for r in rows]
+
+
+def _session_configs(session_id, limit):
+    """Rebuilt V2Ray configs (best score first) for the IPs found by a V2Ray scan."""
+    parsed, ips = _session_ips(session_id, limit)
+    if parsed is None:
+        return None
+    return [V2RayConfigParser.rebuild_config(parsed, ip, name_suffix=f' | {ip}') for ip in ips]
+
+
+@api_bp.route('/v2ray/export/<int:session_id>', methods=['GET'])
+def v2ray_client_export(session_id):
+    """Download the found IPs as a Clash/Mihomo (`?format=clash`) or sing-box (`?format=singbox`) config."""
+    from flask import Response
+    from app.scanner import client_export
+    fmt = request.args.get('format', 'clash')
+    if fmt not in client_export.SUPPORTED:
+        return jsonify({'error': 'format must be clash or singbox'}), 400
+    limit = _to_int(request.args.get('limit'), 50, lo=1, hi=1000)
+    parsed, ips = _session_ips(session_id, limit)
+    if parsed is None:
+        return jsonify({'error': 'No V2Ray scan with this session id'}), 404
+    if not ips:
+        return jsonify({'error': 'This scan has no working IPs to export'}), 404
+    try:
+        text = client_export.export(parsed, ips, fmt,
+                                    test_url=AppSetting.get('xray_test_url', xray_mod.DEFAULT_TEST_URL))
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    filename = f'clash-{session_id}.yaml' if fmt == 'clash' else f'sing-box-{session_id}.json'
+    return Response(text, mimetype='application/json' if fmt == 'singbox' else 'text/yaml',
+                    headers={'Content-Disposition': f'attachment; filename={filename}'})
 
 
 @api_bp.route('/v2ray/subscription/<int:session_id>', methods=['GET'])
