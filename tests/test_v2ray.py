@@ -46,3 +46,13 @@ def test_ip_requires_cdn_response(http_server):
     assert ok and latency is not None and colo == 'FRA'
     ok, _, _ = V2RayConfigParser.test_ip_with_config(_plain_config(plain_port), '127.0.0.1', timeout=3)
     assert not ok
+
+
+def test_ipv6_addresses_in_links():
+    parsed = V2RayConfigParser.parse('vless://u@[2606:4700::1]:8443?security=tls#x')
+    assert parsed['ip'] == '2606:4700::1' and parsed['port'] == 8443
+    rebuilt = V2RayConfigParser.rebuild_config(parsed, '2606:4700::6810:1')
+    assert rebuilt.startswith('vless://u@[2606:4700::6810:1]:8443?')
+    assert V2RayConfigParser.parse(rebuilt)['ip'] == '2606:4700::6810:1'
+    trojan = V2RayConfigParser.parse('trojan://pw@[::1]:443#t')
+    assert trojan['ip'] == '::1' and trojan['port'] == 443

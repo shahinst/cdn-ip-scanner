@@ -20,6 +20,7 @@ from app.scanner.operators import (
 )
 from app.scanner.v2ray import V2RayConfigParser, V2RayScanner
 from app.scanner.speedtest import measure_download, DEFAULT_SPEED_TEST_URL
+from app.scanner import xray as xray_mod
 
 api_bp = Blueprint('api', __name__)
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ SETTINGS_DEFAULTS = {
     'operator_country': 'ir',
     'speed_test': 'false', 'speed_test_size': '1024', 'speed_test_count': '10',
     'speed_test_url': DEFAULT_SPEED_TEST_URL,
+    'xray_test': 'false', 'xray_test_count': '20', 'xray_test_url': xray_mod.DEFAULT_TEST_URL,
 }
 
 
@@ -243,6 +245,7 @@ def _session_configs(session_id, limit):
     if not parsed:
         return None
     rows = (ScanResult.query.filter_by(scan_session_id=session_id)
+            .filter(db.or_(ScanResult.real_delay.is_(None), ScanResult.real_delay >= 0))  # skip failed real tests
             .order_by(ScanResult.score.desc()).limit(limit).all())
     return [V2RayConfigParser.rebuild_config(parsed, r.ip, name_suffix=f' | {r.ip}') for r in rows]
 
@@ -283,6 +286,25 @@ def v2ray_qr():
     return Response(buf.getvalue(), mimetype='image/svg+xml')
 
 
+@api_bp.route('/xray/status', methods=['GET'])
+def xray_status():
+    path = xray_mod.find_xray()
+    return jsonify({'available': bool(path), 'version': xray_mod.xray_version(path) if path else '',
+                    'can_install': not current_app.config.get('FROZEN')})
+
+
+@api_bp.route('/xray/install', methods=['POST'])
+def xray_install():
+    """Download the official Xray-core release (checksum-verified) into the data folder."""
+    if _scan_running():
+        return jsonify({'error': 'Stop the running scan first.'}), 409
+    try:
+        path = xray_mod.install_xray()
+    except Exception as e:
+        return jsonify({'error': f'Xray install failed: {e}'}), 502
+    return jsonify({'available': True, 'version': xray_mod.xray_version(path)})
+
+
 # ========== Scanning ==========
 
 @api_bp.route('/scan/start', methods=['POST'])
@@ -319,6 +341,12 @@ def _start_scan_locked():
         'size_kb': _to_int(data.get('speed_test_size'), 1024, lo=64, hi=51200),
         'count': _to_int(data.get('speed_test_count'), 10, lo=1, hi=200),
         'url': str(data.get('speed_test_url') or DEFAULT_SPEED_TEST_URL).strip(),
+    }
+    xray_opts = {
+        'enabled': (scan_method == 'v2ray' and
+                    str(data.get('xray_test', False)).lower() in ('true', '1', 'yes')),
+        'count': _to_int(data.get('xray_test_count'), 20, lo=1, hi=500),
+        'url': str(data.get('xray_test_url') or xray_mod.DEFAULT_TEST_URL).strip(),
     }
     _log_enabled = str(data.get('log_enabled', True)).lower() in ('true', '1', 'yes')
     _debug_enabled = str(data.get('debug_enabled', False)).lower() in ('true', '1', 'yes')
@@ -559,6 +587,9 @@ def _start_scan_locked():
                 except Exception:
                     db.session.rollback()
 
+                if xray_opts['enabled'] and v2ray_parsed and found_results and not _user_stop_requested:
+                    _run_xray_tests(sess_id, v2ray_parsed, found_results, xray_opts)
+
                 if speed_opts['enabled'] and found_results and not _user_stop_requested:
                     _run_speed_tests(sess_id, found_results, speed_opts)
 
@@ -599,12 +630,69 @@ def _start_scan_locked():
     return jsonify({'session_id': sess_id, 'status': 'started'})
 
 
+def _save_result_fields(sess_id, res, **fields):
+    """Update a stored result (and its score) after a post-scan test."""
+    res.update(fields)
+    score = SHScanner.calc_score(res)
+    res['score'] = score
+    row = ScanResult.query.filter_by(scan_session_id=sess_id, ip=res['ip']).first()
+    if row:
+        for key, value in fields.items():
+            setattr(row, key, value)
+        row.score = score
+        try:
+            db.session.commit()
+        except Exception as e:
+            logger.warning("Could not update result %s: %s", res['ip'], e)
+            db.session.rollback()
+    return score
+
+
+def _run_xray_tests(sess_id, parsed, found_results, opts):
+    """Real-delay test of the best IPs through Xray-core with the user's own config."""
+    path = xray_mod.find_xray()
+    if not path:
+        _emit_log('WARN', 'Xray real test skipped: Xray-core is not installed (Settings → Install Xray).', sess_id)
+        return
+    candidates = sorted(found_results, key=lambda r: r.get('ping') or 1e9)[:opts['count']]
+    by_ip = {r['ip']: r for r in candidates}
+    _emit_log('INFO', f'Xray real test: {len(candidates)} IPs via {opts["url"]}', sess_id)
+    socketio.emit('scan_status', {'status': 'xray_testing', 'total': len(candidates),
+                                  'session_id': sess_id}, namespace='/')
+    done = [0]
+
+    def on_result(ip, delay):
+        done[0] += 1
+        real_delay = delay if delay is not None else -1.0
+        score = _save_result_fields(sess_id, by_ip[ip], real_delay=real_delay)
+        socketio.emit('scan_result_update', {
+            'ip': ip, 'real_delay': real_delay, 'score': round(score, 1), 'session_id': sess_id,
+        }, namespace='/')
+        socketio.emit('scan_progress', {
+            'done': done[0], 'total': len(candidates), 'percent': round(done[0] * 100.0 / len(candidates), 1),
+            'speed': 0, 'elapsed': 0, 'session_id': sess_id, 'phase': 'xray',
+        }, namespace='/')
+        _emit_log('INFO', f'Real delay {ip}: ' + (f'{delay:.0f} ms' if delay is not None else 'failed'), sess_id)
+
+    try:
+        tester = xray_mod.XrayRealTester(path, test_url=opts['url'],
+                                         log=lambda level, msg: _emit_log(level, msg, sess_id))
+        tester.test(parsed, [r['ip'] for r in candidates],
+                    should_stop=lambda: _user_stop_requested, on_result=on_result)
+    except ValueError as e:  # unsupported config (e.g. REALITY / unknown transport)
+        _emit_log('WARN', f'Xray real test skipped: {e}', sess_id)
+
+
 def _run_speed_tests(sess_id, found_results, opts):
     """
     Measure download speed of the best (lowest ping) found IPs one after another
     (in parallel they would share the bandwidth and the numbers would be wrong).
     """
-    candidates = sorted(found_results, key=lambda r: r.get('ping') or 1e9)[:opts['count']]
+    # IPs that failed the Xray real test do not carry traffic: no point measuring them
+    usable = [r for r in found_results if (r.get('real_delay') is None or r['real_delay'] >= 0)]
+    candidates = sorted(usable, key=lambda r: r.get('ping') or 1e9)[:opts['count']]
+    if not candidates:
+        return
     _emit_log('INFO', f'Speed test: {len(candidates)} IPs, {opts["size_kb"]} KB each', sess_id)
     socketio.emit('scan_status', {'status': 'speed_testing', 'total': len(candidates),
                                   'session_id': sess_id}, namespace='/')
@@ -614,17 +702,7 @@ def _run_speed_tests(sess_id, found_results, opts):
             break
         speed = measure_download(res['ip'], size_kb=opts['size_kb'], url=opts['url'],
                                  should_stop=lambda: _user_stop_requested)
-        res['speed'] = speed
-        score = SHScanner.calc_score(res)
-        row = ScanResult.query.filter_by(scan_session_id=sess_id, ip=res['ip']).first()
-        if row:
-            row.speed = speed
-            row.score = score
-            try:
-                db.session.commit()
-            except Exception as e:
-                logger.warning("Could not save speed for %s: %s", res['ip'], e)
-                db.session.rollback()
+        score = _save_result_fields(sess_id, res, speed=speed)
         socketio.emit('scan_result_update', {
             'ip': res['ip'], 'speed': speed, 'score': round(score, 1), 'session_id': sess_id,
         }, namespace='/')
@@ -681,8 +759,8 @@ def get_logs():
 # ========== Export ==========
 
 EXPORT_HEADERS = {
-    'fa': ('رتبه', 'آدرس IP', 'Ping', 'پورت\u200cها', 'امتیاز', 'اپراتور', 'دیتاسنتر', 'سرعت (KB/s)'),
-    'en': ('#', 'IP', 'Ping', 'Ports', 'Score', 'Operator', 'Colo', 'Speed (KB/s)'),
+    'fa': ('رتبه', 'آدرس IP', 'Ping', 'پورت\u200cها', 'امتیاز', 'اپراتور', 'دیتاسنتر', 'سرعت (KB/s)', 'تأخیر واقعی (ms)'),
+    'en': ('#', 'IP', 'Ping', 'Ports', 'Score', 'Operator', 'Colo', 'Speed (KB/s)', 'Real delay (ms)'),
 }
 
 
@@ -729,6 +807,8 @@ def export_results(fmt):
             ws.cell(row=row_idx, column=6, value=(r.operator or ''))
             ws.cell(row=row_idx, column=7, value=(r.colo or ''))
             ws.cell(row=row_idx, column=8, value=round(r.speed, 1) if r.speed is not None else '')
+            real = '' if r.real_delay is None else ('failed' if r.real_delay < 0 else round(r.real_delay))
+            ws.cell(row=row_idx, column=9, value=real)
         buf = BytesIO()
         wb.save(buf)
         buf.seek(0)

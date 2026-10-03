@@ -74,12 +74,7 @@ class V2RayConfigParser:
         if '@' not in without_scheme:
             return None
         uuid_part, host_port = without_scheme.split('@', 1)
-        if ':' in host_port:
-            host, port_str = host_port.rsplit(':', 1)
-            port = int(port_str)
-        else:
-            host = host_port
-            port = 443
+        host, port = V2RayConfigParser._split_host_port(host_port)
 
         params = {}
         if params_str:
@@ -95,6 +90,22 @@ class V2RayConfigParser:
             'fragment': fragment,
             'raw': config_str,
         }
+
+    @staticmethod
+    def _split_host_port(host_port):
+        """'1.2.3.4:443' / '[2606:4700::1]:443' / 'host' → (host, port)."""
+        if host_port.startswith('['):
+            host, _, rest = host_port[1:].partition(']')
+            port = int(rest[1:]) if rest.startswith(':') else 443
+            return host, port
+        if host_port.count(':') == 1:
+            host, port_str = host_port.rsplit(':', 1)
+            return host, int(port_str)
+        return host_port, 443  # bare host (or bare IPv6 without port)
+
+    @staticmethod
+    def _uri_host(ip):
+        return f'[{ip}]' if ':' in ip else ip
 
     @staticmethod
     def _parse_vmess(config_str):
@@ -132,12 +143,7 @@ class V2RayConfigParser:
         if '@' not in without_scheme:
             return None
         password, host_port = without_scheme.split('@', 1)
-        if ':' in host_port:
-            host, port_str = host_port.rsplit(':', 1)
-            port = int(port_str)
-        else:
-            host = host_port
-            port = 443
+        host, port = V2RayConfigParser._split_host_port(host_port)
         params = {}
         if params_str:
             params = dict(parse_qs(params_str, keep_blank_values=True))
@@ -168,7 +174,7 @@ class V2RayConfigParser:
 
         if protocol == 'vless':
             params_str = urlencode(parsed['params'], doseq=True) if parsed['params'] else ''
-            uri = f"vless://{parsed['uuid']}@{new_ip}:{parsed['port']}"
+            uri = f"vless://{parsed['uuid']}@{V2RayConfigParser._uri_host(new_ip)}:{parsed['port']}"
             if params_str:
                 uri += f"?{params_str}"
             if fragment:
@@ -186,7 +192,7 @@ class V2RayConfigParser:
 
         elif protocol == 'trojan':
             params_str = urlencode(parsed['params'], doseq=True) if parsed['params'] else ''
-            uri = f"trojan://{parsed['uuid']}@{new_ip}:{parsed['port']}"
+            uri = f"trojan://{parsed['uuid']}@{V2RayConfigParser._uri_host(new_ip)}:{parsed['port']}"
             if params_str:
                 uri += f"?{params_str}"
             if fragment:

@@ -1,4 +1,5 @@
 import os
+import socket
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -36,6 +37,30 @@ def http_server():
 
     def start(headers):
         srv = ThreadingHTTPServer(('127.0.0.1', 0), _make_handler(headers))
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        servers.append(srv)
+        return srv.server_address[1]
+
+    yield start
+    for srv in servers:
+        srv.shutdown()
+        srv.server_close()
+
+
+class _V6Server(ThreadingHTTPServer):
+    address_family = socket.AF_INET6
+
+
+@pytest.fixture
+def http_server_v6():
+    """Like http_server, but listening on [::1]. Skips if IPv6 is unavailable."""
+    servers = []
+
+    def start(headers):
+        try:
+            srv = _V6Server(('::1', 0), _make_handler(headers))
+        except OSError:
+            pytest.skip('IPv6 loopback not available')
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         servers.append(srv)
         return srv.server_address[1]
