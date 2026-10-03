@@ -48,18 +48,29 @@ def read_version():
         return f.read().strip()
 
 
-def run_pyinstaller():
+def fetch_xray():
+    """Download the checksum-verified Xray-core binary that is bundled into the app."""
+    sys.path.insert(0, ROOT)
+    from app.scanner.xray import install_xray, XRAY_VERSION
+    dest = os.path.join(ROOT, 'build', 'xray-bin')
+    path = install_xray(dest)
+    print(f'Bundling Xray-core {XRAY_VERSION}: {path}', flush=True)
+    return path
+
+
+def run_pyinstaller(xray_path):
     args = [
         sys.executable, '-m', 'PyInstaller', os.path.join(ROOT, 'desktop.py'),
         '--name', NAME, '--noconfirm', '--clean', '--onedir',
         '--distpath', os.path.join(ROOT, 'dist'),
-        '--workpath', os.path.join(ROOT, 'build'),
+        '--workpath', os.path.join(ROOT, 'build', 'pyinstaller'),
         '--specpath', os.path.join(ROOT, 'build'),
         '--paths', ROOT,
         '--add-data', f'{os.path.join(ROOT, "app", "templates")}{SEP}app/templates',
         '--add-data', f'{os.path.join(ROOT, "app", "static")}{SEP}app/static',
         '--add-data', f'{os.path.join(ROOT, "version")}{SEP}.',
         '--icon', os.path.join(ROOT, 'app', 'static', 'img', 'logo.png'),
+        '--add-binary', f'{xray_path}{SEP}bin',
     ]
     for mod in HIDDEN_IMPORTS:
         args += ['--hidden-import', mod]
@@ -110,7 +121,7 @@ def package(version):
 
 def main():
     version = read_version()
-    run_pyinstaller()
+    run_pyinstaller(fetch_xray())
     if not os.path.exists(executable_path()):
         sys.exit(f'Build failed: {executable_path()} not found')
     archive = package(version)

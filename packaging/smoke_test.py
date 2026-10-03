@@ -54,6 +54,10 @@ def main():
         assert status == 200 and b'Socket.IO' in body, 'bundled static files missing'
         status, _ = get('/socket.io/?EIO=4&transport=polling')
         assert status == 200, 'Socket.IO endpoint not working'
+        status, body = get('/api/xray/status')
+        xray = json.loads(body)
+        print('xray:', xray)
+        assert xray['available'], 'bundled Xray-core not found'
         print('Smoke test passed')
     finally:
         proc.terminate()

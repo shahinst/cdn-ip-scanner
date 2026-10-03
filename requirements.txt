@@ -26,6 +26,9 @@ openpyxl>=3.1.0
 # QR codes for V2Ray configs (pure Python)
 segno>=1.6.0
 
+# SOCKS support for the Xray-core real test
+PySocks>=1.7.1
+
 # SSL/TLS support (usually system-provided, but ensure available)
 certifi>=2024.2.2
 

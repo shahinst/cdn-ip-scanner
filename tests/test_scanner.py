@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from app.scanner import core
 from app.scanner.core import SHNetUtils, SHScanner, is_cdn_response, iter_completed
-from app.scanner.range_fetcher import normalize_ipv4_ranges
+from app.scanner.range_fetcher import normalize_ip_ranges
 
 
 def test_split_to_24_blocks():
@@ -67,6 +67,24 @@ def test_batch_scan_reports_results(http_server):
     assert found and found[0]['open_ports'] == [port]
 
 
-def test_normalize_ipv4_ranges():
-    assert normalize_ipv4_ranges(['1.1.1.0/24', '1.1.1.5/24', 'evil<script>', '2606::/32', None, '8.8.8.8']) == [
-        '1.1.1.0/24', '8.8.8.8/32']
+def test_normalize_ip_ranges():
+    assert normalize_ip_ranges(['1.1.1.0/24', '1.1.1.5/24', 'evil<script>', '2606:4700::1/32', None, '8.8.8.8']) == [
+        '1.1.1.0/24', '2606:4700::/32', '8.8.8.8/32']
+
+
+def test_generate_scan_ips_ipv6():
+    import ipaddress
+    net = ipaddress.ip_network('2606:4700::/32')
+    ips = SHNetUtils.generate_scan_ips(['2606:4700::/32', '10.0.0.0/24'], per_block=5, max_total=60)
+    v6 = [ip for ip in ips if ':' in ip]
+    assert v6 and all(ipaddress.ip_address(ip) in net for ip in v6)
+    assert any(ip.startswith('10.0.0.') for ip in ips)
+    assert len(set(ips)) == len(ips)
+
+
+def test_scan_over_ipv6(http_server_v6):
+    port = http_server_v6({'CF-RAY': '1-AMS'})
+    scanner = SHScanner()
+    scanner.max_workers = 2
+    results = scanner.batch_scan(['::1'], [port])
+    assert results and results[0]['ip'] == '::1' and results[0]['colo'] == 'AMS'
