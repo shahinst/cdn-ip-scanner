@@ -2,7 +2,7 @@
   <img src="image/logo.png" alt="CDN IP Scanner Logo" width="80" height="80">
 </p>
 
-<h1 align="center">CDN IP Scanner V2.1</h1>
+<h1 align="center">CDN IP Scanner V2.2</h1>
 
 <p align="center">
   <b>High Accuracy &bull; Ultra Fast &bull; Real-Time</b>
@@ -53,6 +53,9 @@ The scanner uses a proven **5-attempt verification method** with `/cdn-cgi/trace
 | **Download Speed Test** | Optional real download test through the best IPs; speed counts in the score |
 | **Subscription & QR** | V2Ray scans: one-click subscription link for v2rayN / v2rayNG / Hiddify, "copy all configs", and a QR code per IP for your phone |
 | **Desktop App** | Native window on Windows and macOS, browser mode on Linux — no Python needed |
+| **Xray Real Test** | V2Ray scans: test the best IPs through Xray-core with your own config — only IPs that really carry traffic pass |
+| **Favorites & Monitoring** | Save IPs with ☆, re-check them automatically (5 min – 3 h), see 24h uptime, and get a Telegram message when one stops working |
+| **IPv4 + IPv6** | Scan IPv4 and IPv6 ranges (Cloudflare IPv6 ranges included) |
 | **Multi-Language** | Full support for English, فارسی (Persian), 中文 (Chinese), Русский (Russian) |
 | **Dark/Light Theme** | Beautiful modern UI with dark mode support |
 | **Export Results** | Save results as JSON, Excel (.xlsx), or Text (IPs only) |
@@ -248,6 +251,9 @@ Watch the full installation and usage tutorial on YouTube:
 | **تست سرعت دانلود** | تست واقعی سرعت دانلود بهترین آی‌پی‌ها (اختیاری) و تأثیر آن در امتیاز |
 | **ساب‌اسکریپشن و QR** | در اسکن V2Ray: لینک ساب‌اسکریپشن برای v2rayN / v2rayNG / Hiddify، کپی همه کانفیگ‌ها و QR کد هر آی‌پی برای گوشی |
 | **برنامه دسکتاپ** | پنجره مستقل در ویندوز و مک، حالت مرورگر در لینوکس — بدون نیاز به پایتون |
+| **تست واقعی با Xray** | در اسکن V2Ray، بهترین آی‌پی‌ها با کانفیگ خود شما از داخل Xray-core تست می‌شوند — فقط آی‌پی‌هایی که واقعاً کار می‌کنند |
+| **علاقه‌مندی‌ها و پایش** | ذخیره آی‌پی با ☆، بررسی خودکار دوره‌ای (۵ دقیقه تا ۳ ساعت)، نمایش پایداری ۲۴ ساعته و پیام تلگرام وقتی آی‌پی از کار بیفتد |
+| **IPv4 و IPv6** | اسکن رنج‌های IPv4 و IPv6 (شامل رنج‌های IPv6 کلودفلر) |
 | **چندزبانه** | پشتیبانی کامل از فارسی، English، 中文، Русский |
 | **تم تاریک/روشن** | رابط کاربری مدرن و زیبا با پشتیبانی حالت تاریک |
 | **خروجی نتایج** | ذخیره نتایج به صورت JSON، اکسل (xlsx.) یا متن (فقط آی‌پی) |

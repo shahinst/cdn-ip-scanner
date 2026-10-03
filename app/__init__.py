@@ -100,8 +100,10 @@ def create_app(config_override=None):
 
     from app.routes.main import main_bp
     from app.routes.api import api_bp
+    from app.routes.favorites import favorites_bp
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
+    app.register_blueprint(favorites_bp, url_prefix='/api')
 
     with app.app_context():
         try:
