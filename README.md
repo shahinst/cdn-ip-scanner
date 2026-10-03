@@ -111,6 +111,9 @@ Every release includes `SHA256SUMS.txt` to verify the downloads.
 > On macOS, if the app "can't be opened", right-click it → *Open*, or run `xattr -dr com.apple.quarantine CDN-IP-Scanner.app`.
 > The builds are not code-signed yet.
 
+On Linux servers installed with `install.sh`, the service runs as the unprivileged `cdnscanner` user
+with a hardened systemd unit: the code is read-only and only `data/` is writable.
+
 Data (database, settings, `scanner.log`) is stored in `%APPDATA%\CDN-IP-Scanner` (Windows),
 `~/Library/Application Support/CDN-IP-Scanner` (macOS) or `~/.local/share/cdn-ip-scanner` (Linux).
 
@@ -158,6 +161,9 @@ journalctl -u cdn-ip-scanner -f
 
 # Restart
 systemctl restart cdn-ip-scanner
+
+# Update to a new version (keeps your database): re-run the installer
+sudo bash install.sh
 
 # Uninstall
 bash /opt/cdn-ip-scanner/uninstall.sh
@@ -358,6 +364,9 @@ journalctl -u cdn-ip-scanner -f
 
 # ریستارت
 systemctl restart cdn-ip-scanner
+
+# به‌روزرسانی به نسخه جدید (دیتابیس حفظ می‌شود): اجرای دوباره نصب‌کننده
+sudo bash install.sh
 
 # حذف
 bash /opt/cdn-ip-scanner/uninstall.sh
