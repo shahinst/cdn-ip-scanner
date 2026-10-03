@@ -13,6 +13,7 @@
 </head>
 <body>
     {% block content %}{% endblock %}
+    <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>

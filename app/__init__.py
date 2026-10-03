@@ -101,9 +101,11 @@ def create_app(config_override=None):
     from app.routes.main import main_bp
     from app.routes.api import api_bp
     from app.routes.favorites import favorites_bp
+    from app.routes.diagnostics import diagnostics_bp
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(favorites_bp, url_prefix='/api')
+    app.register_blueprint(diagnostics_bp, url_prefix='/api')
 
     with app.app_context():
         try:
@@ -117,6 +119,11 @@ def create_app(config_override=None):
             from app.models import migrate_schema
             migrate_schema()
             db.create_all()
+            # A scan still marked "running" belongs to a previous process (closed or
+            # crashed): mark it interrupted so it can be resumed from the UI.
+            from app.models import ScanSession
+            ScanSession.query.filter_by(status='running').update({'status': 'interrupted'})
+            db.session.commit()
             logging.getLogger(__name__).info("Database initialized successfully")
         except Exception as e:
             logging.getLogger(__name__).warning(

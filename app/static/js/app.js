@@ -77,6 +77,11 @@ const T = {
         settings_tg_proxy: "Proxy for Telegram (optional, e.g. socks5h://127.0.0.1:10808)",
         tg_test_btn: "Send test message", tg_sent: "Test message sent",
         clash_btn: "\u2B07 Clash / Mihomo", singbox_btn: "\u2B07 sing-box",
+        chart_speed: "Scan speed (IP/s)", chart_ping: "Ping of found IPs (ms)",
+        resume_text: "Scan #{id} was interrupted with {found} of {target} IPs found.",
+        resume_btn: "\u25B6 Resume", resume_discard: "Dismiss",
+        settings_diag: "Diagnostics", diag_desc: "Download a report (version, system, settings without secrets, recent logs) to attach to a GitHub issue.",
+        diag_btn: "\u2B07 Download report",
         profile_label: "Scan profile", profile_custom: "Custom (my settings)",
         profile_quick: "\u26A1 Quick \u2014 a few fast IPs", profile_balanced: "\u2696\uFE0F Balanced \u2014 recommended",
         profile_thorough: "\uD83D\uDD0D Thorough \u2014 many IPs, all tests",
@@ -148,6 +153,11 @@ const T = {
         settings_tg_proxy: "پروکسی برای تلگرام (اختیاری، مثلاً socks5h://127.0.0.1:10808)",
         tg_test_btn: "ارسال پیام آزمایشی", tg_sent: "پیام آزمایشی ارسال شد",
         clash_btn: "\u2B07 Clash / Mihomo", singbox_btn: "\u2B07 sing-box",
+        chart_speed: "سرعت اسکن (IP در ثانیه)", chart_ping: "پینگ آی‌پی‌های پیدا شده (ms)",
+        resume_text: "اسکن #{id} نیمه‌کاره ماند: {found} از {target} آی‌پی پیدا شده.",
+        resume_btn: "\u25B6 ادامه اسکن", resume_discard: "بستن",
+        settings_diag: "عیب‌یابی", diag_desc: "دانلود گزارش (نسخه، سیستم، تنظیمات بدون اطلاعات محرمانه، لاگ‌های اخیر) برای پیوست به issue در گیت‌هاب.",
+        diag_btn: "\u2B07 دانلود گزارش",
         profile_label: "پروفایل اسکن", profile_custom: "سفارشی (تنظیمات من)",
         profile_quick: "\u26A1 سریع \u2014 چند آی‌پی سریع", profile_balanced: "\u2696\uFE0F متعادل \u2014 پیشنهادی",
         profile_thorough: "\uD83D\uDD0D کامل \u2014 آی‌پی بیشتر، همه تست‌ها",
@@ -259,6 +269,25 @@ function setDebugVisible(visible) {
 
 // (CDN provider detection removed - operator detection is server-side ISP detection)
 
+// ===== Live charts =====
+let speedChart = null, pingChart = null;
+
+function initCharts() {
+    if (!window.LiveChart) return;
+    const fmtX = s => localNum(Math.round(s)) + 's';
+    const sc = document.getElementById('chartSpeed'), pc = document.getElementById('chartPing');
+    if (sc) speedChart = new LiveChart(sc, { kind: 'line', label: t('chart_speed'), formatX: fmtX,
+        formatY: v => localNum(Math.round(v)) + ' IP/s' });
+    if (pc) pingChart = new LiveChart(pc, { kind: 'dots', label: t('chart_ping'), formatX: fmtX,
+        formatY: v => localNum(Math.round(v)) + ' ms' });
+}
+
+function resetCharts() {
+    document.getElementById('chartsRow')?.classList.remove('hidden');
+    speedChart?.reset();
+    pingChart?.reset();
+}
+
 // ===== WebSocket =====
 function initSocket() {
     socket = io({ transports: ['websocket', 'polling'] });
@@ -270,6 +299,7 @@ function initSocket() {
         const bar = document.getElementById('progressBar');
         const status = document.getElementById('progressStatus');
         if (bar) bar.style.width = data.percent + '%';
+        if (!data.phase && data.elapsed > 0) speedChart?.push(data.elapsed, data.speed);
         if (status) {
             status.textContent = data.phase === 'speed'
                 ? t('speed_testing') + ' ' + localNum(data.done) + '/' + localNum(data.total)
@@ -282,6 +312,7 @@ function initSocket() {
 
     socket.on('scan_result', data => {
         resultCount++;
+        if (startTime && data.ping) pingChart?.push((Date.now() - startTime) / 1000, data.ping);
         addResultRow(data);
         document.getElementById('statFound').textContent = localNum(resultCount);
         if (data.ping) {
@@ -303,6 +334,7 @@ function initSocket() {
         document.getElementById('progressStatus').textContent = msg;
         addLog('INFO', 'Scan complete: ' + (data.total_found || resultCount) + ' IPs found');
         updateV2rayTools();
+        checkResumable();  // a stopped scan can be continued later
     });
 
     socket.on('scan_result_update', data => {
@@ -853,10 +885,19 @@ async function startScan() {
         return;
     }
 
+    document.getElementById('resumeBanner')?.classList.add('hidden');
+    enterScanningState(method);
+    addLog('INFO', 'Scan started: method=' + method);
+    await startScanRequest(ranges, method, v2rayConfig);
+}
+
+// Reset the results area and switch the UI to "scanning" (new or resumed scan)
+function enterScanningState(method) {
     isScanning = true;
     resultCount = 0;
     currentScanMethod = method;
     resetResultsView();
+    resetCharts();
     sessionId = null;
     updateV2rayTools();
     currentV2rayConfig = (method === 'v2ray' ? (document.getElementById('v2rayConfig')?.value || '') : '');
@@ -870,20 +911,71 @@ async function startScan() {
     document.getElementById('statLatency').textContent = '\u2014 ms';
     document.getElementById('progressStatus').textContent = lang === 'fa' ? '\u062F\u0631 \u062D\u0627\u0644 \u0627\u0633\u06A9\u0646...' : 'Scanning...';
 
-    // Show/hide operator column
-    var thOperator = document.getElementById('thOperator');
-    if (thOperator) thOperator.classList.toggle('hidden', method === 'cloud');
-    var thDownload = document.getElementById('thDownload');
-    if (thDownload) thDownload.classList.toggle('hidden', method !== 'v2ray');
+    // Show/hide method-specific columns
+    document.getElementById('thOperator')?.classList.toggle('hidden', method === 'cloud');
+    document.getElementById('thDownload')?.classList.toggle('hidden', method !== 'v2ray');
     document.getElementById('thReal')?.classList.toggle('hidden', method !== 'v2ray');
 
-    addLog('INFO', 'Scan started: method=' + method);
-
+    clearInterval(timerInterval);
     timerInterval = setInterval(() => {
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
         document.getElementById('statTime').textContent = localNum(elapsed) + 's';
     }, 1000);
+}
 
+// ===== Resume an interrupted / stopped scan =====
+async function checkResumable() {
+    const banner = document.getElementById('resumeBanner');
+    if (!banner) return;
+    const r = await api('/scan/resumable');
+    if (!r.resumable) { banner.classList.add('hidden'); return; }
+    document.getElementById('resumeText').textContent = t('resume_text')
+        .replace('{id}', localNum(r.session_id))
+        .replace('{found}', localNum(r.found))
+        .replace('{target}', localNum(r.target_count === 'All' ? '\u221E' : r.target_count));
+    banner.dataset.sessionId = r.session_id;
+    banner.dataset.method = r.scan_method || 'cloud';
+    banner.classList.remove('hidden');
+}
+
+async function resumeScan() {
+    const banner = document.getElementById('resumeBanner');
+    const sid = Number(banner.dataset.sessionId);
+    const method = banner.dataset.method;
+    enterScanningState(method);
+    const res = await api('/scan/resume', 'POST', { session_id: sid });
+    if (res.error || !res.session_id) {
+        addLog('ERROR', res.error || 'Could not resume scan');
+        showToast(res.error || 'Could not resume scan');
+        leaveScanningState();
+        return;
+    }
+    banner.classList.add('hidden');
+    sessionId = res.session_id;
+    addLog('INFO', 'Resumed session #' + sessionId);
+    // Show what the scan had already found
+    const prior = await api('/scan/results?limit=10000&session_id=' + sessionId);
+    (Array.isArray(prior) ? prior : []).forEach(r => {
+        if (document.querySelector('#resultsBody tr[data-ip="' + CSS.escape(r.ip) + '"]')) return;
+        resultCount++;
+        addResultRow(Object.assign({}, r, { is_v2ray: method === 'v2ray' }));
+    });
+    document.getElementById('statFound').textContent = localNum(resultCount);
+}
+
+async function discardResume() {
+    await api('/scan/discard-resume', 'POST');
+    document.getElementById('resumeBanner')?.classList.add('hidden');
+}
+
+function leaveScanningState() {
+    isScanning = false;
+    clearInterval(timerInterval);
+    document.getElementById('btnStart').disabled = false;
+    document.getElementById('btnStop').disabled = true;
+}
+
+async function startScanRequest(ranges, method, v2rayConfig) {
     const data = await api('/scan/start', 'POST', {
         ranges: ranges,
         scan_method: method,
@@ -909,10 +1001,7 @@ async function startScan() {
     if (data.error || !data.session_id) {
         addLog('ERROR', data.error || 'Could not start scan');
         if (data.error) showToast(data.error);
-        isScanning = false;
-        clearInterval(timerInterval);
-        document.getElementById('btnStart').disabled = false;
-        document.getElementById('btnStop').disabled = true;
+        leaveScanningState();
         return;
     }
     sessionId = data.session_id;
@@ -1179,6 +1268,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedTheme = localStorage.getItem('cdn-theme') || 'light';
     setTheme(savedTheme);
     applyTranslations();
+    initCharts();
     initSocket();
     loadSettings();
 
@@ -1205,6 +1295,10 @@ document.addEventListener('DOMContentLoaded', () => {
         th.addEventListener('click', () => setSort(th.dataset.sort)));
     document.getElementById('btnFavCheck')?.addEventListener('click', checkFavoritesNow);
     document.getElementById('btnTgTest')?.addEventListener('click', testTelegram);
+    document.getElementById('btnResume')?.addEventListener('click', resumeScan);
+    document.getElementById('btnResumeDiscard')?.addEventListener('click', discardResume);
+    checkResumable();
+    document.getElementById('btnDiagnostics')?.addEventListener('click', () => openExternal('/api/diagnostics'));
     ['closeFavorites', 'btnCloseFavorites'].forEach(id => document.getElementById(id)?.addEventListener('click',
         () => document.getElementById('favoritesModal').classList.add('hidden')));
     refreshXrayStatus();

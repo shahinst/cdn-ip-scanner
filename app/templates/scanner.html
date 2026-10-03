@@ -119,6 +119,15 @@
         </div>
     </div>
 
+    <!-- Resume banner (an earlier scan was stopped or the app was closed mid-scan) -->
+    <div id="resumeBanner" class="resume-banner hidden">
+        <span id="resumeText"></span>
+        <div class="resume-actions">
+            <button type="button" class="btn btn-sm btn-primary" id="btnResume" data-t="resume_btn">▶ Resume</button>
+            <button type="button" class="btn btn-sm" id="btnResumeDiscard" data-t="resume_discard">Dismiss</button>
+        </div>
+    </div>
+
     <!-- Action Buttons -->
     <div class="action-buttons">
         <button class="btn" id="btnSettings" data-t="settings">⚙️ Settings</button>
@@ -138,6 +147,18 @@
         </div>
         <div class="progress-bar-outer">
             <div class="progress-bar-inner" id="progressBar" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <!-- Live charts (shown once a scan starts) -->
+    <div id="chartsRow" class="charts-row hidden">
+        <div class="chart-card">
+            <h4 data-t="chart_speed">Scan speed (IP/s)</h4>
+            <div id="chartSpeed"></div>
+        </div>
+        <div class="chart-card">
+            <h4 data-t="chart_ping">Ping of found IPs (ms)</h4>
+            <div id="chartPing"></div>
         </div>
     </div>
 
@@ -306,6 +327,11 @@
                         <input type="text" id="settingTgProxy" class="input" dir="ltr" placeholder="socks5h://127.0.0.1:10808" />
                     </label>
                     <button type="button" class="btn btn-sm" id="btnTgTest" data-t="tg_test_btn" style="margin-top:0.6rem">Send test message</button>
+                </div>
+                <div class="setting-group">
+                    <h4 data-t="settings_diag">Diagnostics</h4>
+                    <p class="card-hint" data-t="diag_desc">Download a report to attach to a GitHub issue.</p>
+                    <button type="button" class="btn btn-sm" id="btnDiagnostics" data-t="diag_btn">⬇ Download report</button>
                 </div>
                 <div class="setting-group">
                     <h4 data-t="settings_theme">Theme</h4>
