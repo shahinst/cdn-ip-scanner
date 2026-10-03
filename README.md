@@ -2,7 +2,7 @@
   <img src="image/logo.png" alt="CDN IP Scanner Logo" width="80" height="80">
 </p>
 
-<h1 align="center">CDN IP Scanner V2.1</h1>
+<h1 align="center">CDN IP Scanner V2.2</h1>
 
 <p align="center">
   <b>High Accuracy &bull; Ultra Fast &bull; Real-Time</b>
