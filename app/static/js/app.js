@@ -77,6 +77,7 @@ const T = {
         settings_tg_proxy: "Proxy for Telegram (optional, e.g. socks5h://127.0.0.1:10808)",
         tg_test_btn: "Send test message", tg_sent: "Test message sent",
         clash_btn: "\u2B07 Clash / Mihomo", singbox_btn: "\u2B07 sing-box",
+        chart_speed: "Scan speed (IP/s)", chart_ping: "Ping of found IPs (ms)",
         settings_diag: "Diagnostics", diag_desc: "Download a report (version, system, settings without secrets, recent logs) to attach to a GitHub issue.",
         diag_btn: "\u2B07 Download report",
         profile_label: "Scan profile", profile_custom: "Custom (my settings)",
@@ -150,6 +151,7 @@ const T = {
         settings_tg_proxy: "پروکسی برای تلگرام (اختیاری، مثلاً socks5h://127.0.0.1:10808)",
         tg_test_btn: "ارسال پیام آزمایشی", tg_sent: "پیام آزمایشی ارسال شد",
         clash_btn: "\u2B07 Clash / Mihomo", singbox_btn: "\u2B07 sing-box",
+        chart_speed: "سرعت اسکن (IP در ثانیه)", chart_ping: "پینگ آی‌پی‌های پیدا شده (ms)",
         settings_diag: "عیب‌یابی", diag_desc: "دانلود گزارش (نسخه، سیستم، تنظیمات بدون اطلاعات محرمانه، لاگ‌های اخیر) برای پیوست به issue در گیت‌هاب.",
         diag_btn: "\u2B07 دانلود گزارش",
         profile_label: "پروفایل اسکن", profile_custom: "سفارشی (تنظیمات من)",
@@ -263,6 +265,25 @@ function setDebugVisible(visible) {
 
 // (CDN provider detection removed - operator detection is server-side ISP detection)
 
+// ===== Live charts =====
+let speedChart = null, pingChart = null;
+
+function initCharts() {
+    if (!window.LiveChart) return;
+    const fmtX = s => localNum(Math.round(s)) + 's';
+    const sc = document.getElementById('chartSpeed'), pc = document.getElementById('chartPing');
+    if (sc) speedChart = new LiveChart(sc, { kind: 'line', label: t('chart_speed'), formatX: fmtX,
+        formatY: v => localNum(Math.round(v)) + ' IP/s' });
+    if (pc) pingChart = new LiveChart(pc, { kind: 'dots', label: t('chart_ping'), formatX: fmtX,
+        formatY: v => localNum(Math.round(v)) + ' ms' });
+}
+
+function resetCharts() {
+    document.getElementById('chartsRow')?.classList.remove('hidden');
+    speedChart?.reset();
+    pingChart?.reset();
+}
+
 // ===== WebSocket =====
 function initSocket() {
     socket = io({ transports: ['websocket', 'polling'] });
@@ -274,6 +295,7 @@ function initSocket() {
         const bar = document.getElementById('progressBar');
         const status = document.getElementById('progressStatus');
         if (bar) bar.style.width = data.percent + '%';
+        if (!data.phase && data.elapsed > 0) speedChart?.push(data.elapsed, data.speed);
         if (status) {
             status.textContent = data.phase === 'speed'
                 ? t('speed_testing') + ' ' + localNum(data.done) + '/' + localNum(data.total)
@@ -286,6 +308,7 @@ function initSocket() {
 
     socket.on('scan_result', data => {
         resultCount++;
+        if (startTime && data.ping) pingChart?.push((Date.now() - startTime) / 1000, data.ping);
         addResultRow(data);
         document.getElementById('statFound').textContent = localNum(resultCount);
         if (data.ping) {
@@ -861,6 +884,7 @@ async function startScan() {
     resultCount = 0;
     currentScanMethod = method;
     resetResultsView();
+    resetCharts();
     sessionId = null;
     updateV2rayTools();
     currentV2rayConfig = (method === 'v2ray' ? (document.getElementById('v2rayConfig')?.value || '') : '');
@@ -1183,6 +1207,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedTheme = localStorage.getItem('cdn-theme') || 'light';
     setTheme(savedTheme);
     applyTranslations();
+    initCharts();
     initSocket();
     loadSettings();
 
