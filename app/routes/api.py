@@ -47,6 +47,7 @@ SETTINGS_DEFAULTS = {
     'speed_test': 'false', 'speed_test_size': '1024', 'speed_test_count': '10',
     'speed_test_url': DEFAULT_SPEED_TEST_URL,
     'xray_test': 'false', 'xray_test_count': '20', 'xray_test_url': xray_mod.DEFAULT_TEST_URL,
+    'profile': 'custom',  # last scan profile chosen in the UI
     'monitor_interval': '0',  # minutes between favorite-IP checks (0 = off)
     'telegram_token': '', 'telegram_chat_id': '', 'telegram_proxy': '',
 }

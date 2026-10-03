@@ -76,6 +76,13 @@ const T = {
         settings_tg_token: "Telegram bot token", settings_tg_chat: "Chat ID",
         settings_tg_proxy: "Proxy for Telegram (optional, e.g. socks5h://127.0.0.1:10808)",
         tg_test_btn: "Send test message", tg_sent: "Test message sent",
+        profile_label: "Scan profile", profile_custom: "Custom (my settings)",
+        profile_quick: "\u26A1 Quick \u2014 a few fast IPs", profile_balanced: "\u2696\uFE0F Balanced \u2014 recommended",
+        profile_thorough: "\uD83D\uDD0D Thorough \u2014 many IPs, all tests",
+        profile_mobile: "\uD83D\uDCF1 Mobile networks \u2014 tolerant of high latency",
+        profile_applied: "Profile applied:",
+        filter_placeholder: "Filter by IP or colo...", filter_all_colos: "All data centers",
+        filter_only_working: "Hide IPs that failed the real test",
         scan_complete: "Done! {found} IPs in {time}s", ip_copied: "IP copied!",
     },
     fa: {
@@ -139,6 +146,13 @@ const T = {
         settings_tg_token: "توکن ربات تلگرام", settings_tg_chat: "Chat ID",
         settings_tg_proxy: "پروکسی برای تلگرام (اختیاری، مثلاً socks5h://127.0.0.1:10808)",
         tg_test_btn: "ارسال پیام آزمایشی", tg_sent: "پیام آزمایشی ارسال شد",
+        profile_label: "پروفایل اسکن", profile_custom: "سفارشی (تنظیمات من)",
+        profile_quick: "\u26A1 سریع \u2014 چند آی‌پی سریع", profile_balanced: "\u2696\uFE0F متعادل \u2014 پیشنهادی",
+        profile_thorough: "\uD83D\uDD0D کامل \u2014 آی‌پی بیشتر، همه تست‌ها",
+        profile_mobile: "\uD83D\uDCF1 اینترنت موبایل \u2014 مناسب تأخیر بالا",
+        profile_applied: "پروفایل اعمال شد:",
+        filter_placeholder: "فیلتر بر اساس IP یا دیتاسنتر...", filter_all_colos: "همه دیتاسنترها",
+        filter_only_working: "پنهان کردن آی‌پی‌هایی که در تست واقعی رد شدند",
         scan_complete: "\u0627\u062A\u0645\u0627\u0645! {found} IP \u062F\u0631 {time} \u062B\u0627\u0646\u06CC\u0647", ip_copied: "IP \u06A9\u067E\u06CC \u0634\u062F!",
     },
     zh: {
@@ -292,7 +306,12 @@ function initSocket() {
     socket.on('scan_result_update', data => {
         const row = document.querySelector('#resultsBody tr[data-ip="' + CSS.escape(data.ip) + '"]');
         if (!row) return;
-        if (data.speed !== undefined) row.querySelector('.speed-cell').textContent = formatSpeed(data.speed);
+        if (data.speed !== undefined) {
+            row.querySelector('.speed-cell').textContent = formatSpeed(data.speed);
+            row.dataset.speed = data.speed ?? '';
+        }
+        if (data.score != null) row.dataset.score = data.score;
+        if (data.real_delay !== undefined) row.dataset.real = data.real_delay ?? '';
         if (data.score != null) {
             row.querySelector('.score-cell').textContent = localNum(Number(data.score).toFixed(0)) + '/' + localNum('100');
         }
@@ -301,6 +320,7 @@ function initSocket() {
             if (cell) cell.textContent = formatRealDelay(data.real_delay);
             row.classList.toggle('row-failed', data.real_delay !== null && data.real_delay < 0);
         }
+        applyResultsView();
     });
 
     socket.on('scan_error', data => {
@@ -360,6 +380,12 @@ function addResultRow(data) {
     const operatorText = escapeHtml(data.operator || '\u2014');
     const ipText = escapeHtml(data.ip);
     row.dataset.ip = data.ip;
+    row.dataset.rank = resultCount;
+    row.dataset.ping = data.ping ?? '';
+    row.dataset.score = data.score ?? '';
+    row.dataset.colo = data.colo || '';
+    row.dataset.speed = data.speed ?? '';
+    row.dataset.real = data.real_delay ?? '';
 
     let cells =
         '<td><button type="button" class="btn-star" title="' + escapeHtml(t('favorites_btn')) + '">\u2606</button> ' +
@@ -390,7 +416,108 @@ function addResultRow(data) {
         row.querySelector('.btn-qr')?.addEventListener('click', () => showConfigQr(data.ip));
     }
     tbody.appendChild(row);
+    addColoOption(data.colo);
+    applyResultsView();
 }
+
+// ===== Results: sort + filter (client-side, on the rows already shown) =====
+let sortKey = null, sortAsc = true;
+
+function sortValue(row, key) {
+    const v = row.dataset[key];
+    if (key === 'colo') return v || '\uFFFF';
+    if (v === '' || v === undefined) return null;
+    const n = Number(v);
+    if (key === 'real' && n < 0) return Infinity;  // failed real tests sort last
+    return n;
+}
+
+function applyResultsView() {
+    const tbody = document.getElementById('resultsBody');
+    if (!tbody) return;
+    const text = (document.getElementById('resultsFilter')?.value || '').trim().toLowerCase();
+    const colo = document.getElementById('coloFilter')?.value || '';
+    const onlyWorking = document.getElementById('onlyWorking')?.checked;
+    const rows = Array.from(tbody.rows);
+    rows.forEach(r => {
+        const matchText = !text || r.dataset.ip.toLowerCase().includes(text) || r.dataset.colo.toLowerCase().includes(text);
+        const matchColo = !colo || r.dataset.colo === colo;
+        const failed = r.classList.contains('row-failed');
+        r.classList.toggle('hidden', !(matchText && matchColo && !(onlyWorking && failed)));
+    });
+    if (!sortKey) return;
+    rows.sort((a, b) => {
+        const va = sortValue(a, sortKey), vb = sortValue(b, sortKey);
+        if (va === null && vb === null) return Number(a.dataset.rank) - Number(b.dataset.rank);
+        if (va === null) return 1;   // untested values always last
+        if (vb === null) return -1;
+        const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+        return sortAsc ? cmp : -cmp;
+    });
+    rows.forEach(r => tbody.appendChild(r));
+}
+
+function setSort(key) {
+    // Score and speed are "higher is better": first click sorts descending
+    const defaultAsc = !(key === 'score' || key === 'speed');
+    if (sortKey === key) sortAsc = !sortAsc;
+    else { sortKey = key; sortAsc = defaultAsc; }
+    document.querySelectorAll('#resultsTable th[data-sort]').forEach(th => {
+        th.classList.toggle('sort-asc', th.dataset.sort === sortKey && sortAsc);
+        th.classList.toggle('sort-desc', th.dataset.sort === sortKey && !sortAsc);
+    });
+    applyResultsView();
+}
+
+function addColoOption(colo) {
+    const sel = document.getElementById('coloFilter');
+    if (!sel || !colo || Array.from(sel.options).some(o => o.value === colo)) return;
+    const opt = document.createElement('option');
+    opt.value = colo;
+    opt.textContent = colo;
+    sel.appendChild(opt);
+}
+
+function resetResultsView() {
+    const sel = document.getElementById('coloFilter');
+    if (sel) while (sel.options.length > 1) sel.remove(1);
+}
+
+// ===== Scan profiles =====
+const PROFILES = {
+    quick:    { mode: 'hyper', target: '50',  ping_max: '800',  ports: '443',
+                speed: false, xray: false },
+    balanced: { mode: 'turbo', target: '100', ping_max: '1500', ports: '443,8443,2053,2083,2087,2096',
+                speed: true, speed_count: '5', speed_size: '1024', xray: true, xray_count: '20' },
+    thorough: { mode: 'deep',  target: '500', ping_max: '3000', ports: '443,80,8443,2053,2083,2087,2096',
+                speed: true, speed_count: '20', speed_size: '5120', xray: true, xray_count: '50' },
+    mobile:   { mode: 'ultra', target: '100', ping_max: '2500', ports: '443,8443,2053',
+                speed: true, speed_count: '10', speed_size: '512', xray: true, xray_count: '20' },
+};
+
+function setField(id, value) {
+    const el = document.getElementById(id);
+    if (!el || value === undefined) return;
+    if (el.type === 'checkbox') el.checked = !!value; else el.value = value;
+}
+
+async function applyProfile(name) {
+    const p = PROFILES[name];
+    if (!p) return;
+    setField('settingMode', p.mode);
+    setField('settingTarget', p.target);
+    setField('settingPingMin', '0');
+    setField('settingPingMax', p.ping_max);
+    setField('settingPorts', p.ports);
+    setField('settingSpeedTest', p.speed);
+    setField('settingSpeedCount', p.speed_count);
+    setField('settingSpeedSize', p.speed_size);
+    setField('settingXrayTest', p.xray);
+    setField('settingXrayCount', p.xray_count);
+    await saveSettings({ quiet: true });
+    showToast(t('profile_applied') + ' ' + t('profile_' + name));
+}
+
 
 // ===== Favorites / monitoring =====
 async function addFavorite(data, btn) {
@@ -628,6 +755,8 @@ async function loadSettings() {
     if (s.speed_test_size) document.getElementById('settingSpeedSize').value = s.speed_test_size;
     if (s.speed_test_count) document.getElementById('settingSpeedCount').value = s.speed_test_count;
     if (s.speed_test_url) document.getElementById('settingSpeedUrl').value = s.speed_test_url;
+    const profEl = document.getElementById('scanProfile');
+    if (profEl && s.profile) profEl.value = s.profile;
     const xrayEl = document.getElementById('settingXrayTest');
     if (xrayEl) xrayEl.checked = (s.xray_test === 'true');
     if (s.xray_test_count) document.getElementById('settingXrayCount').value = s.xray_test_count;
@@ -650,7 +779,11 @@ async function loadSettings() {
     document.getElementById('statTarget').textContent = localNum(s.target_count || '100');
 }
 
-async function saveSettings() {
+async function saveSettings(opts) {
+    const quiet = opts && opts.quiet;
+    const prof = document.getElementById('scanProfile');
+    // Settings changed by hand: no longer a predefined profile
+    if (!quiet && prof) prof.value = 'custom';
     const theme = document.querySelector('input[name="theme"]:checked')?.value || 'light';
     const logEnabledVal = document.getElementById('settingLogEnabled')?.checked || false;
     const debugEnabledVal = document.getElementById('settingDebug')?.checked || false;
@@ -677,8 +810,10 @@ async function saveSettings() {
         log_enabled: logEnabledVal ? 'true' : 'false',
         debug_enabled: debugEnabledVal ? 'true' : 'false',
         theme: theme,
+        profile: prof?.value || 'custom',
     });
     document.getElementById('statTarget').textContent = localNum(document.getElementById('settingTarget').value);
+    if (quiet) return;
     document.getElementById('settingsModal').classList.add('hidden');
     showToast(lang === 'fa' ? '\u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u0630\u062E\u06CC\u0631\u0647 \u0634\u062F' : 'Settings saved');
 }
@@ -699,6 +834,7 @@ async function startScan() {
     isScanning = true;
     resultCount = 0;
     currentScanMethod = method;
+    resetResultsView();
     sessionId = null;
     updateV2rayTools();
     currentV2rayConfig = (method === 'v2ray' ? (document.getElementById('v2rayConfig')?.value || '') : '');
@@ -1038,6 +1174,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnCopySub')?.addEventListener('click', copySubscriptionLink);
     document.getElementById('btnInstallXray')?.addEventListener('click', installXray);
     document.getElementById('btnFavorites')?.addEventListener('click', openFavorites);
+    document.getElementById('scanProfile')?.addEventListener('change', e => applyProfile(e.target.value));
+    ['resultsFilter', 'coloFilter', 'onlyWorking'].forEach(id => {
+        const el = document.getElementById(id);
+        el?.addEventListener(el.tagName === 'INPUT' && el.type === 'text' ? 'input' : 'change', applyResultsView);
+    });
+    document.querySelectorAll('#resultsTable th[data-sort]').forEach(th =>
+        th.addEventListener('click', () => setSort(th.dataset.sort)));
     document.getElementById('btnFavCheck')?.addEventListener('click', checkFavoritesNow);
     document.getElementById('btnTgTest')?.addEventListener('click', testTelegram);
     ['closeFavorites', 'btnCloseFavorites'].forEach(id => document.getElementById(id)?.addEventListener('click',
