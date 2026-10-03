@@ -363,7 +363,7 @@ body {
     border-color: var(--accent);
 }
 
-.btn-primary:hover { opacity: 0.85; }
+.btn-primary:hover { opacity: 0.85; color: var(--accent-fg); }  /* .btn:hover would make the text invisible */
 
 /* ===== Stats Row ===== */
 .stats-row {
@@ -506,6 +506,8 @@ body {
 .setting-field { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.6rem; font-size: 0.8rem; color: var(--muted); }
 .xray-status-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.4rem; }
 tr.row-failed td { opacity: 0.45; }
+.btn-star { background: none; border: none; cursor: pointer; font-size: 1rem; color: var(--muted); padding: 0 0.15rem; }
+.btn-star.active, .btn-star:hover { color: #f5b301; }
 .qr-body { display: flex; justify-content: center; }
 .qr-body svg { width: 100%; max-width: 300px; height: auto; background: #fff; border-radius: 8px; }
 
