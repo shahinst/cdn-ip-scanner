@@ -77,6 +77,8 @@ const T = {
         settings_tg_proxy: "Proxy for Telegram (optional, e.g. socks5h://127.0.0.1:10808)",
         tg_test_btn: "Send test message", tg_sent: "Test message sent",
         clash_btn: "\u2B07 Clash / Mihomo", singbox_btn: "\u2B07 sing-box",
+        settings_diag: "Diagnostics", diag_desc: "Download a report (version, system, settings without secrets, recent logs) to attach to a GitHub issue.",
+        diag_btn: "\u2B07 Download report",
         profile_label: "Scan profile", profile_custom: "Custom (my settings)",
         profile_quick: "\u26A1 Quick \u2014 a few fast IPs", profile_balanced: "\u2696\uFE0F Balanced \u2014 recommended",
         profile_thorough: "\uD83D\uDD0D Thorough \u2014 many IPs, all tests",
@@ -148,6 +150,8 @@ const T = {
         settings_tg_proxy: "پروکسی برای تلگرام (اختیاری، مثلاً socks5h://127.0.0.1:10808)",
         tg_test_btn: "ارسال پیام آزمایشی", tg_sent: "پیام آزمایشی ارسال شد",
         clash_btn: "\u2B07 Clash / Mihomo", singbox_btn: "\u2B07 sing-box",
+        settings_diag: "عیب‌یابی", diag_desc: "دانلود گزارش (نسخه، سیستم، تنظیمات بدون اطلاعات محرمانه، لاگ‌های اخیر) برای پیوست به issue در گیت‌هاب.",
+        diag_btn: "\u2B07 دانلود گزارش",
         profile_label: "پروفایل اسکن", profile_custom: "سفارشی (تنظیمات من)",
         profile_quick: "\u26A1 سریع \u2014 چند آی‌پی سریع", profile_balanced: "\u2696\uFE0F متعادل \u2014 پیشنهادی",
         profile_thorough: "\uD83D\uDD0D کامل \u2014 آی‌پی بیشتر، همه تست‌ها",
@@ -1205,6 +1209,7 @@ document.addEventListener('DOMContentLoaded', () => {
         th.addEventListener('click', () => setSort(th.dataset.sort)));
     document.getElementById('btnFavCheck')?.addEventListener('click', checkFavoritesNow);
     document.getElementById('btnTgTest')?.addEventListener('click', testTelegram);
+    document.getElementById('btnDiagnostics')?.addEventListener('click', () => openExternal('/api/diagnostics'));
     ['closeFavorites', 'btnCloseFavorites'].forEach(id => document.getElementById(id)?.addEventListener('click',
         () => document.getElementById('favoritesModal').classList.add('hidden')));
     refreshXrayStatus();
