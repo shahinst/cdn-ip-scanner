@@ -111,6 +111,7 @@
     <!-- Action Buttons -->
     <div class="action-buttons">
         <button class="btn" id="btnSettings" data-t="settings">⚙️ Settings</button>
+        <button class="btn" id="btnFavorites" data-t="favorites_btn">⭐ Favorites</button>
         <button class="btn" id="btnAnalyze" data-t="analyze_btn">📊 Analyze</button>
         <button class="btn" id="btnReset" data-t="reset_data_btn">🔄 Reset data</button>
         <button class="btn" id="btnSave" data-t="save_btn">💾 Save</button>
@@ -259,6 +260,31 @@
                     </div>
                 </div>
                 <div class="setting-group">
+                    <h4 data-t="settings_monitor">Monitoring &amp; Telegram</h4>
+                    <label class="setting-field"><span data-t="settings_monitor_interval">Re-check favorites every</span>
+                        <select id="settingMonitorInterval" class="select">
+                            <option value="0" data-t="monitor_off">Off</option>
+                            <option value="5">5</option>
+                            <option value="15">15</option>
+                            <option value="30">30</option>
+                            <option value="60">60</option>
+                            <option value="180">180</option>
+                        </select>
+                    </label>
+                    <div class="setting-fields">
+                        <label class="setting-field"><span data-t="settings_tg_token">Telegram bot token</span>
+                            <input type="password" id="settingTgToken" class="input" dir="ltr" autocomplete="off" />
+                        </label>
+                        <label class="setting-field"><span data-t="settings_tg_chat">Chat ID</span>
+                            <input type="text" id="settingTgChat" class="input" dir="ltr" />
+                        </label>
+                    </div>
+                    <label class="setting-field"><span data-t="settings_tg_proxy">Proxy for Telegram (optional)</span>
+                        <input type="text" id="settingTgProxy" class="input" dir="ltr" placeholder="socks5h://127.0.0.1:10808" />
+                    </label>
+                    <button type="button" class="btn btn-sm" id="btnTgTest" data-t="tg_test_btn" style="margin-top:0.6rem">Send test message</button>
+                </div>
+                <div class="setting-group">
                     <h4 data-t="settings_theme">Theme</h4>
                     <div class="theme-row">
                         <label><input type="radio" name="theme" value="light" checked /> ☀️ Light</label>
@@ -283,6 +309,40 @@
             <div class="modal-footer">
                 <button class="btn btn-primary" id="btnSaveSettings" data-t="save_btn">Save</button>
                 <button class="btn" id="btnCloseSettings" data-t="close_btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Favorites Modal -->
+    <div id="favoritesModal" class="modal hidden">
+        <div class="modal-content" style="max-width:860px">
+            <div class="modal-header">
+                <h2 data-t="favorites_title">Favorite IPs</h2>
+                <button class="modal-close" id="closeFavorites">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="favoritesEmpty" class="card-hint hidden" data-t="fav_empty">No favorites yet.</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th data-t="fav_status">Status</th>
+                                <th data-t="ip_hdr">IP</th>
+                                <th data-t="ports_hdr">Port</th>
+                                <th data-t="ping_hdr">Ping</th>
+                                <th data-t="colo_hdr">Colo</th>
+                                <th data-t="fav_uptime">Uptime 24h</th>
+                                <th data-t="fav_last_check">Last check</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="favoritesBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="btnFavCheck" data-t="fav_check_now">Check now</button>
+                <button class="btn" id="btnCloseFavorites" data-t="close_btn">Close</button>
             </div>
         </div>
     </div>

@@ -56,7 +56,9 @@ def main():
     args = parser.parse_args()
 
     from app import create_app, socketio
+    from app.monitor import start_monitor
     app = create_app()
+    start_monitor(app)
 
     if not _is_loopback(args.host) and not app.config.get('AUTH_ENABLED'):
         print("WARNING: binding to a non-loopback address without APP_USERNAME/"

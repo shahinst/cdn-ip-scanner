@@ -67,6 +67,15 @@ const T = {
         settings_xray_count: "Number of IPs to test", settings_xray_url: "Test URL",
         xray_testing: "Real test through Xray...", xray_missing: "Xray-core is not installed.",
         xray_install_btn: "Install Xray", xray_installing: "Downloading Xray...", xray_ready: "Xray ready:",
+        favorites_btn: "\u2B50 Favorites", favorites_title: "Favorite IPs", fav_added: "Added to favorites:",
+        fav_empty: "No favorites yet. Click \u2606 next to a result to add it.",
+        fav_check_now: "Check now", fav_checking: "Checking...", fav_status: "Status",
+        fav_uptime: "Uptime 24h", fav_last_check: "Last check", fav_remove: "Remove",
+        settings_monitor: "Monitoring & Telegram", settings_monitor_interval: "Re-check favorites every (minutes)",
+        monitor_off: "Off", minutes: "min",
+        settings_tg_token: "Telegram bot token", settings_tg_chat: "Chat ID",
+        settings_tg_proxy: "Proxy for Telegram (optional, e.g. socks5h://127.0.0.1:10808)",
+        tg_test_btn: "Send test message", tg_sent: "Test message sent",
         scan_complete: "Done! {found} IPs in {time}s", ip_copied: "IP copied!",
     },
     fa: {
@@ -121,6 +130,15 @@ const T = {
         settings_xray_count: "تعداد آی‌پی برای تست", settings_xray_url: "آدرس تست",
         xray_testing: "در حال تست واقعی با Xray...", xray_missing: "Xray-core نصب نیست.",
         xray_install_btn: "نصب Xray", xray_installing: "در حال دانلود Xray...", xray_ready: "Xray آماده است:",
+        favorites_btn: "\u2B50 علاقه‌مندی‌ها", favorites_title: "آی‌پی‌های مورد علاقه", fav_added: "به علاقه‌مندی‌ها اضافه شد:",
+        fav_empty: "هنوز آی‌پی ذخیره نشده. روی \u2606 کنار هر نتیجه بزنید.",
+        fav_check_now: "بررسی الان", fav_checking: "در حال بررسی...", fav_status: "وضعیت",
+        fav_uptime: "پایداری ۲۴ ساعت", fav_last_check: "آخرین بررسی", fav_remove: "حذف",
+        settings_monitor: "پایش و تلگرام", settings_monitor_interval: "بررسی خودکار علاقه‌مندی‌ها هر (دقیقه)",
+        monitor_off: "خاموش", minutes: "دقیقه",
+        settings_tg_token: "توکن ربات تلگرام", settings_tg_chat: "Chat ID",
+        settings_tg_proxy: "پروکسی برای تلگرام (اختیاری، مثلاً socks5h://127.0.0.1:10808)",
+        tg_test_btn: "ارسال پیام آزمایشی", tg_sent: "پیام آزمایشی ارسال شد",
         scan_complete: "\u0627\u062A\u0645\u0627\u0645! {found} IP \u062F\u0631 {time} \u062B\u0627\u0646\u06CC\u0647", ip_copied: "IP \u06A9\u067E\u06CC \u0634\u062F!",
     },
     zh: {
@@ -295,6 +313,9 @@ function initSocket() {
     });
 
     socket.on('scan_log', data => { addLog(data.level, data.message); });
+    socket.on('favorites_update', data => {
+        if (!document.getElementById('favoritesModal')?.classList.contains('hidden')) renderFavorites(data.favorites || []);
+    });
     socket.on('scan_status', data => {
         addLog('INFO', 'Scan status: ' + data.status + ', total IPs: ' + data.total);
         if (data.status === 'speed_testing') {
@@ -341,7 +362,8 @@ function addResultRow(data) {
     row.dataset.ip = data.ip;
 
     let cells =
-        '<td>' + localNum('#' + resultCount) + '</td>' +
+        '<td><button type="button" class="btn-star" title="' + escapeHtml(t('favorites_btn')) + '">\u2606</button> ' +
+            localNum('#' + resultCount) + '</td>' +
         '<td class="ip-cell" data-ip="' + ipText + '">' + ipText + '</td>' +
         '<td>' + ping + '</td>' +
         '<td>' + (ports || '\u2014') + '</td>' +
@@ -357,6 +379,7 @@ function addResultRow(data) {
             ' <button type="button" class="btn btn-sm btn-qr">' + t('qr_btn') + '</button></td>';
     }
     row.innerHTML = cells;
+    row.querySelector('.btn-star').addEventListener('click', e => addFavorite(data, e.currentTarget));
     row.querySelector('.ip-cell').addEventListener('click', () => {
         navigator.clipboard?.writeText(data.ip);
         showToast(t('ip_copied') + ' ' + data.ip);
@@ -367,6 +390,76 @@ function addResultRow(data) {
         row.querySelector('.btn-qr')?.addEventListener('click', () => showConfigQr(data.ip));
     }
     tbody.appendChild(row);
+}
+
+// ===== Favorites / monitoring =====
+async function addFavorite(data, btn) {
+    const res = await api('/favorites', 'POST', {
+        ip: data.ip, port: (data.open_ports || [])[0] || 443, ping: data.ping, colo: data.colo,
+    });
+    if (res.error) { showToast(res.error); return; }
+    if (btn) { btn.textContent = '\u2605'; btn.classList.add('active'); }
+    showToast(t('fav_added') + ' ' + data.ip);
+}
+
+function renderFavorites(list) {
+    const body = document.getElementById('favoritesBody');
+    const empty = document.getElementById('favoritesEmpty');
+    if (!body) return;
+    body.innerHTML = '';
+    empty?.classList.toggle('hidden', list.length > 0);
+    list.forEach(f => {
+        const tr = document.createElement('tr');
+        const status = f.last_ok === true ? '\u2705' : f.last_ok === false ? '\u274C' : '\u2014';
+        const ping = f.last_ping ? localNum(Math.round(f.last_ping)) + ' ms' : '\u2014';
+        const uptime = f.uptime_24h != null ? localNum(f.uptime_24h) + '%' : '\u2014';
+        const last = f.last_checked ? new Date(f.last_checked + 'Z').toLocaleString(lang === 'fa' ? 'fa-IR' : undefined) : '\u2014';
+        tr.innerHTML =
+            '<td>' + status + '</td>' +
+            '<td class="ip-cell">' + escapeHtml(f.ip) + '</td>' +
+            '<td>' + localNum(f.port) + '</td>' +
+            '<td>' + ping + '</td>' +
+            '<td>' + escapeHtml(f.last_colo || '\u2014') + '</td>' +
+            '<td>' + uptime + '</td>' +
+            '<td>' + escapeHtml(last) + '</td>' +
+            '<td><button type="button" class="btn btn-sm btn-fav-remove">\uD83D\uDDD1</button></td>';
+        tr.querySelector('.ip-cell').addEventListener('click', () => {
+            navigator.clipboard?.writeText(f.ip);
+            showToast(t('ip_copied') + ' ' + f.ip);
+        });
+        tr.querySelector('.btn-fav-remove').addEventListener('click', async () => {
+            await api('/favorites/' + encodeURIComponent(f.ip), 'DELETE');
+            loadFavorites();
+        });
+        body.appendChild(tr);
+    });
+}
+
+async function loadFavorites() {
+    const list = await api('/favorites');
+    renderFavorites(Array.isArray(list) ? list : []);
+}
+
+async function openFavorites() {
+    document.getElementById('favoritesModal').classList.remove('hidden');
+    loadFavorites();
+}
+
+async function checkFavoritesNow() {
+    const btn = document.getElementById('btnFavCheck');
+    if (btn) { btn.disabled = true; btn.textContent = t('fav_checking'); }
+    const res = await api('/favorites/check', 'POST');
+    if (btn) { btn.disabled = false; btn.textContent = t('fav_check_now'); }
+    if (res.favorites) renderFavorites(res.favorites);
+}
+
+async function testTelegram() {
+    const res = await api('/telegram/test', 'POST', {
+        telegram_token: document.getElementById('settingTgToken')?.value || '',
+        telegram_chat_id: document.getElementById('settingTgChat')?.value || '',
+        telegram_proxy: document.getElementById('settingTgProxy')?.value || '',
+    });
+    showToast(res.error ? 'Telegram: ' + res.error : t('tg_sent'));
 }
 
 function formatRealDelay(delay) {
@@ -539,6 +632,10 @@ async function loadSettings() {
     if (xrayEl) xrayEl.checked = (s.xray_test === 'true');
     if (s.xray_test_count) document.getElementById('settingXrayCount').value = s.xray_test_count;
     if (s.xray_test_url) document.getElementById('settingXrayUrl').value = s.xray_test_url;
+    if (s.monitor_interval) document.getElementById('settingMonitorInterval').value = s.monitor_interval;
+    document.getElementById('settingTgToken').value = s.telegram_token || '';
+    document.getElementById('settingTgChat').value = s.telegram_chat_id || '';
+    document.getElementById('settingTgProxy').value = s.telegram_proxy || '';
     if (s.theme) setTheme(s.theme);
     // Log checkbox
     const logEl = document.getElementById('settingLogEnabled');
@@ -573,6 +670,10 @@ async function saveSettings() {
         xray_test: document.getElementById('settingXrayTest')?.checked ? 'true' : 'false',
         xray_test_count: document.getElementById('settingXrayCount')?.value || '20',
         xray_test_url: document.getElementById('settingXrayUrl')?.value || '',
+        monitor_interval: document.getElementById('settingMonitorInterval')?.value || '0',
+        telegram_token: document.getElementById('settingTgToken')?.value.trim() || '',
+        telegram_chat_id: document.getElementById('settingTgChat')?.value.trim() || '',
+        telegram_proxy: document.getElementById('settingTgProxy')?.value.trim() || '',
         log_enabled: logEnabledVal ? 'true' : 'false',
         debug_enabled: debugEnabledVal ? 'true' : 'false',
         theme: theme,
@@ -936,6 +1037,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnFetchAllOps')?.addEventListener('click', fetchAllOperators);
     document.getElementById('btnCopySub')?.addEventListener('click', copySubscriptionLink);
     document.getElementById('btnInstallXray')?.addEventListener('click', installXray);
+    document.getElementById('btnFavorites')?.addEventListener('click', openFavorites);
+    document.getElementById('btnFavCheck')?.addEventListener('click', checkFavoritesNow);
+    document.getElementById('btnTgTest')?.addEventListener('click', testTelegram);
+    ['closeFavorites', 'btnCloseFavorites'].forEach(id => document.getElementById(id)?.addEventListener('click',
+        () => document.getElementById('favoritesModal').classList.add('hidden')));
     refreshXrayStatus();
     document.getElementById('btnCopyAllConfigs')?.addEventListener('click', copyAllConfigs);
 
