@@ -509,4 +509,11 @@ class SHScanner:
             score += 10
         elif speed >= 300:
             score += 5
+        # Xray real test (V2Ray scans): None = not tested, <0 = failed, else delay in ms
+        real_delay = result.get('real_delay')
+        if real_delay is not None:
+            if real_delay < 0:
+                score *= 0.25  # the CDN answers, but the config does not work through this IP
+            else:
+                score += 15
         return max(0.0, min(100.0, score))
