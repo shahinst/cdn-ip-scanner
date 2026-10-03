@@ -43,6 +43,7 @@ class ScanSession(db.Model):
     mode = db.Column(db.String(50), nullable=True)
     scan_method = db.Column(db.String(50), nullable=True)
     v2ray_config = db.Column(db.Text, nullable=True)  # template config (for subscription output)
+    params = db.Column(db.Text, nullable=True)  # JSON of the scan request, used to resume it
     total_scanned = db.Column(db.Integer, default=0)
     total_found = db.Column(db.Integer, default=0)
     duration = db.Column(db.Float, default=0.0)
@@ -124,6 +125,7 @@ _ADDED_COLUMNS = [
     ('scan_results', 'speed', 'FLOAT'),
     ('scan_results', 'real_delay', 'FLOAT'),
     ('scan_sessions', 'v2ray_config', 'TEXT'),
+    ('scan_sessions', 'params', 'TEXT'),
 ]
 
 

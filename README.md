@@ -2,7 +2,7 @@
   <img src="image/logo.png" alt="CDN IP Scanner Logo" width="80" height="80">
 </p>
 
-<h1 align="center">CDN IP Scanner V2.3</h1>
+<h1 align="center">CDN IP Scanner V2.4</h1>
 
 <p align="center">
   <b>High Accuracy &bull; Ultra Fast &bull; Real-Time</b>
@@ -58,6 +58,9 @@ The scanner uses a proven **5-attempt verification method** with `/cdn-cgi/trace
 | **IPv4 + IPv6** | Scan IPv4 and IPv6 ranges (Cloudflare IPv6 ranges included) |
 | **Scan Profiles** | One click: Quick, Balanced, Thorough or Mobile networks — or your own settings |
 | **Filter & Sort** | Filter results by IP or data center, hide failed real tests, sort by ping, score, speed or real delay |
+| **Live Charts** | Scan speed and the ping of every found IP, drawn live while scanning |
+| **Resume Scans** | Stopped a scan or closed the app mid-scan? Continue where it left off with one click |
+| **Diagnostics** | One-click report (version, system, settings without secrets, logs) to attach to bug reports |
 | **Clash & sing-box Export** | Download the working IPs as a ready Clash/Mihomo or sing-box config with automatic fastest-IP selection |
 | **Multi-Language** | Full support for English, فارسی (Persian), 中文 (Chinese), Русский (Russian) |
 | **Dark/Light Theme** | Beautiful modern UI with dark mode support |
@@ -265,6 +268,9 @@ Watch the full installation and usage tutorial on YouTube:
 | **IPv4 و IPv6** | اسکن رنج‌های IPv4 و IPv6 (شامل رنج‌های IPv6 کلودفلر) |
 | **پروفایل‌های اسکن** | با یک کلیک: سریع، متعادل، کامل یا اینترنت موبایل — یا تنظیمات خودتان |
 | **فیلتر و مرتب‌سازی** | فیلتر نتایج بر اساس IP یا دیتاسنتر، پنهان کردن تست‌های ناموفق، مرتب‌سازی بر اساس پینگ، امتیاز، سرعت یا تأخیر واقعی |
+| **نمودار زنده** | نمایش لحظه‌ای سرعت اسکن و پینگ هر آی‌پی پیدا شده |
+| **ادامه اسکن** | اسکن را متوقف کردید یا برنامه وسط اسکن بسته شد؟ با یک کلیک از همان‌جا ادامه دهید |
+| **گزارش عیب‌یابی** | گزارش یک‌کلیکی (نسخه، سیستم، تنظیمات بدون اطلاعات محرمانه، لاگ) برای گزارش باگ |
 | **خروجی Clash و sing-box** | دانلود آی‌پی‌های سالم به صورت کانفیگ آماده Clash/Mihomo یا sing-box با انتخاب خودکار سریع‌ترین آی‌پی |
 | **چندزبانه** | پشتیبانی کامل از فارسی، English، 中文، Русский |
 | **تم تاریک/روشن** | رابط کاربری مدرن و زیبا با پشتیبانی حالت تاریک |
