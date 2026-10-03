@@ -506,6 +506,13 @@ body {
 .setting-field { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.6rem; font-size: 0.8rem; color: var(--muted); }
 .xray-status-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.4rem; }
 tr.row-failed td { opacity: 0.45; }
+.results-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.results-filters .input { flex: 1 1 200px; min-width: 0; }
+.results-filters .select { flex: 0 1 200px; }
+#resultsTable th[data-sort] { cursor: pointer; user-select: none; }
+#resultsTable th[data-sort]::after { content: ' \2195'; opacity: 0.35; font-size: 0.8em; }
+#resultsTable th.sort-asc::after { content: ' \25B2'; opacity: 1; }
+#resultsTable th.sort-desc::after { content: ' \25BC'; opacity: 1; }
 .btn-star { background: none; border: none; cursor: pointer; font-size: 1rem; color: var(--muted); padding: 0 0.15rem; }
 .btn-star.active, .btn-star:hover { color: #f5b301; }
 .qr-body { display: flex; justify-content: center; }

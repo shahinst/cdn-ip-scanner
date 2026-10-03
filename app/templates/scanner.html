@@ -67,6 +67,17 @@
             <button class="btn btn-full" id="btnFetchRanges" data-t="fetch_ranges_btn">📡 Fetch Ranges</button>
 
             <div class="control-row">
+                <label data-t="profile_label">Scan profile</label>
+                <select id="scanProfile" class="select">
+                    <option value="custom" data-t="profile_custom">Custom (my settings)</option>
+                    <option value="quick" data-t="profile_quick">Quick</option>
+                    <option value="balanced" data-t="profile_balanced">Balanced</option>
+                    <option value="thorough" data-t="profile_thorough">Thorough</option>
+                    <option value="mobile" data-t="profile_mobile">Mobile networks</option>
+                </select>
+            </div>
+
+            <div class="control-row">
                 <label data-t="scan_method_label">Scan method</label>
                 <select id="scanMethod" class="select">
                     <option value="cloud" data-t="scan_method_cloud">Cloud scan</option>
@@ -139,19 +150,29 @@
                 <button type="button" class="btn btn-sm" id="btnCopyAllConfigs" data-t="copy_all_btn">📋 Copy all configs</button>
             </div>
         </div>
+        <div class="results-filters">
+            <input type="text" id="resultsFilter" class="input" data-t="filter_placeholder" placeholder="Filter by IP or colo..." />
+            <select id="coloFilter" class="select">
+                <option value="" data-t="filter_all_colos">All data centers</option>
+            </select>
+            <label class="checkbox-row">
+                <input type="checkbox" id="onlyWorking" />
+                <span data-t="filter_only_working">Hide IPs that failed the real test</span>
+            </label>
+        </div>
         <div class="table-container">
             <table id="resultsTable">
                 <thead>
                     <tr>
                         <th data-t="rank_hdr">Rank</th>
                         <th data-t="ip_hdr">IP</th>
-                        <th data-t="ping_hdr">Ping</th>
+                        <th data-sort="ping" data-t="ping_hdr">Ping</th>
                         <th data-t="ports_hdr">Ports</th>
-                        <th data-t="score_hdr">Score</th>
-                        <th data-t="colo_hdr">Colo</th>
-                        <th data-t="speed_hdr">Speed</th>
+                        <th data-sort="score" data-t="score_hdr">Score</th>
+                        <th data-sort="colo" data-t="colo_hdr">Colo</th>
+                        <th data-sort="speed" data-t="speed_hdr">Speed</th>
                         <th id="thOperator" class="hidden" data-t="operator_hdr">Operator</th>
-                        <th id="thReal" class="hidden" data-t="real_hdr">Real delay</th>
+                        <th id="thReal" class="hidden" data-sort="real" data-t="real_hdr">Real delay</th>
                         <th id="thDownload" class="download-col hidden" data-t="download_hdr">Download</th>
                     </tr>
                 </thead>
