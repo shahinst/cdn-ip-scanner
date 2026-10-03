@@ -76,6 +76,7 @@ const T = {
         settings_tg_token: "Telegram bot token", settings_tg_chat: "Chat ID",
         settings_tg_proxy: "Proxy for Telegram (optional, e.g. socks5h://127.0.0.1:10808)",
         tg_test_btn: "Send test message", tg_sent: "Test message sent",
+        clash_btn: "\u2B07 Clash / Mihomo", singbox_btn: "\u2B07 sing-box",
         profile_label: "Scan profile", profile_custom: "Custom (my settings)",
         profile_quick: "\u26A1 Quick \u2014 a few fast IPs", profile_balanced: "\u2696\uFE0F Balanced \u2014 recommended",
         profile_thorough: "\uD83D\uDD0D Thorough \u2014 many IPs, all tests",
@@ -146,6 +147,7 @@ const T = {
         settings_tg_token: "توکن ربات تلگرام", settings_tg_chat: "Chat ID",
         settings_tg_proxy: "پروکسی برای تلگرام (اختیاری، مثلاً socks5h://127.0.0.1:10808)",
         tg_test_btn: "ارسال پیام آزمایشی", tg_sent: "پیام آزمایشی ارسال شد",
+        clash_btn: "\u2B07 Clash / Mihomo", singbox_btn: "\u2B07 sing-box",
         profile_label: "پروفایل اسکن", profile_custom: "سفارشی (تنظیمات من)",
         profile_quick: "\u26A1 سریع \u2014 چند آی‌پی سریع", profile_balanced: "\u2696\uFE0F متعادل \u2014 پیشنهادی",
         profile_thorough: "\uD83D\uDD0D کامل \u2014 آی‌پی بیشتر، همه تست‌ها",
@@ -652,6 +654,26 @@ async function copySubscriptionLink() {
     if (!sessionId) return;
     const url = location.origin + '/api/v2ray/subscription/' + sessionId;
     if (await copyText(url)) showToast(t('sub_copied'));
+}
+
+async function downloadClientConfig(fmt) {
+    if (!sessionId) return;
+    const url = '/api/v2ray/export/' + sessionId + '?format=' + fmt;
+    try {
+        const res = await fetch(url);
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || ('HTTP ' + res.status));
+        }
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fmt === 'clash' ? 'clash-' + sessionId + '.yaml' : 'sing-box-' + sessionId + '.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+    } catch (e) {
+        showToast('Error: ' + e.message);
+    }
 }
 
 async function copyAllConfigs() {
@@ -1187,6 +1209,8 @@ document.addEventListener('DOMContentLoaded', () => {
         () => document.getElementById('favoritesModal').classList.add('hidden')));
     refreshXrayStatus();
     document.getElementById('btnCopyAllConfigs')?.addEventListener('click', copyAllConfigs);
+    document.getElementById('btnExportClash')?.addEventListener('click', () => downloadClientConfig('clash'));
+    document.getElementById('btnExportSingbox')?.addEventListener('click', () => downloadClientConfig('singbox'));
 
     // Settings modal
     document.getElementById('btnSettings')?.addEventListener('click', () => document.getElementById('settingsModal').classList.remove('hidden'));
