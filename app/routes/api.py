@@ -351,10 +351,22 @@ def start_scan():
         return _start_scan_locked()
 
 
-def _start_scan_locked():
+# Request fields stored with a session so an interrupted scan can be resumed.
+# The V2Ray config is kept separately (ScanSession.v2ray_config).
+RESUMABLE_FIELDS = (
+    'ranges', 'scan_method', 'mode', 'target_count', 'ping_min', 'ping_max', 'ports',
+    'operator_key', 'country', 'speed_test', 'speed_test_size', 'speed_test_count',
+    'speed_test_url', 'xray_test', 'xray_test_count', 'xray_test_url', 'log_enabled',
+    'debug_enabled',
+)
+
+
+def _start_scan_locked(data=None, resume=None):
+    """Start a scan from request data, or continue the session `resume` with its saved params."""
     global _active_session_id, _log_enabled, _debug_enabled, _scan_thread
 
-    data = request.get_json(silent=True) or {}
+    if data is None:
+        data = request.get_json(silent=True) or {}
     ranges_input = data.get('ranges', [])
     scan_method = data.get('scan_method', 'cloud')
     mode = data.get('mode', 'hyper')
@@ -396,13 +408,22 @@ def _start_scan_locked():
     else:
         target_count = _to_int(target_count, 100, lo=1, hi=100000)
 
-    # Create session
-    session = ScanSession(mode=mode, scan_method=scan_method, status='running',
-                          v2ray_config=v2ray_config if scan_method == 'v2ray' else None)
-    db.session.add(session)
+    if resume is None:
+        session = ScanSession(mode=mode, scan_method=scan_method, status='running',
+                              v2ray_config=v2ray_config if scan_method == 'v2ray' else None,
+                              params=json.dumps({k: data[k] for k in RESUMABLE_FIELDS if k in data}))
+        db.session.add(session)
+        prior = []
+    else:
+        session = resume
+        session.status = 'running'
+        session.completed_at = None
+        prior = ScanResult.query.filter_by(scan_session_id=session.id).all()
     db.session.commit()
     sess_id = session.id
     _active_session_id = sess_id
+    prior_ips = {r.ip for r in prior}
+    prior_scanned = session.total_scanned or 0
 
     # CRITICAL: Get the CURRENT app reference - do NOT create_app() in thread
     app = current_app._get_current_object()
@@ -430,7 +451,10 @@ def _start_scan_locked():
                 _scanner.max_latency_ms = ping_max
                 _scanner.timeout = min(10, max(2, ping_max / 1000.0 * 1.5))
 
-                _emit_log('INFO', f'Scan started: method={scan_method}, mode={mode}', sess_id)
+                if resume is None:
+                    _emit_log('INFO', f'Scan started: method={scan_method}, mode={mode}', sess_id)
+                else:
+                    _emit_log('INFO', f'Resuming scan #{sess_id}: {len(prior_ips)} IPs already found', sess_id)
 
                 # Handle V2Ray scan method
                 v2ray_parsed = None
@@ -469,11 +493,11 @@ def _start_scan_locked():
                 # Batch size per round
                 batch_size = max(target_count * 100, 5000) if target_count else 100000
                 max_total_scanned = 500000  # safety: stop after 500k IPs tried
-                total_scanned = 0
+                total_scanned = prior_scanned
 
-                found = 0
-                found_results = []  # for the speed-test phase
-                found_ips = set()  # random sampling can pick the same IP in several batches
+                found = len(prior_ips)  # a resumed scan keeps what it already found
+                found_results = []  # for the speed-test phase (new results only)
+                found_ips = set(prior_ips)  # random sampling can pick the same IP in several batches
 
                 def on_progress(done, total_ips, speed=0, elapsed=0):
                     nonlocal total_scanned
@@ -746,6 +770,59 @@ def _run_speed_tests(sess_id, found_results, opts):
             'speed': 0, 'elapsed': 0, 'session_id': sess_id, 'phase': 'speed',
         }, namespace='/')
         _emit_log('INFO', f'Speed {res["ip"]}: ' + (f'{speed:.0f} KB/s' if speed else 'failed'), sess_id)
+
+
+RESUMABLE_STATUSES = ('interrupted', 'stopped')
+
+
+def _resumable_session():
+    """Most recent session that was stopped or interrupted and can be continued."""
+    sess = (ScanSession.query.filter(ScanSession.status.in_(RESUMABLE_STATUSES))
+            .filter(ScanSession.params.isnot(None))
+            .order_by(ScanSession.id.desc()).first())
+    if not sess:
+        return None
+    # Only offer it while it is still the latest scan (a newer scan supersedes it)
+    latest = ScanSession.query.order_by(ScanSession.id.desc()).first()
+    return sess if latest and latest.id == sess.id else None
+
+
+@api_bp.route('/scan/resumable', methods=['GET'])
+def scan_resumable():
+    sess = _resumable_session()
+    if not sess:
+        return jsonify({'resumable': False})
+    params = json.loads(sess.params or '{}')
+    found = ScanResult.query.filter_by(scan_session_id=sess.id).count()
+    return jsonify({
+        'resumable': True, 'session_id': sess.id, 'status': sess.status, 'found': found,
+        'target_count': params.get('target_count', 100), 'scan_method': sess.scan_method,
+        'created_at': sess.created_at.isoformat() if sess.created_at else None,
+    })
+
+
+@api_bp.route('/scan/resume', methods=['POST'])
+def scan_resume():
+    session_id = (request.get_json(silent=True) or {}).get('session_id')
+    with _scan_lock:
+        if _scan_running():
+            return jsonify({'error': 'A scan is already running. Stop it first.'}), 409
+        sess = _resumable_session()
+        if not sess or sess.id != session_id:
+            return jsonify({'error': 'This scan cannot be resumed'}), 404
+        data = json.loads(sess.params or '{}')
+        data['v2ray_config'] = sess.v2ray_config or ''
+        return _start_scan_locked(data=data, resume=sess)
+
+
+@api_bp.route('/scan/discard-resume', methods=['POST'])
+def scan_discard_resume():
+    """The user does not want to resume: close the session for good."""
+    sess = _resumable_session()
+    if sess:
+        sess.status = 'completed'
+        db.session.commit()
+    return jsonify({'status': 'ok'})
 
 
 @api_bp.route('/scan/stop', methods=['POST'])
