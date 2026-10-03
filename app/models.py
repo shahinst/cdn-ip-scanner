@@ -139,3 +139,37 @@ def migrate_schema():
             existing = {c['name'] for c in inspector.get_columns(table)}
             if column not in existing:
                 conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {column} {sql_type}'))
+
+
+class FavoriteIP(db.Model):
+    """An IP the user saved; re-checked periodically by app.monitor."""
+    __tablename__ = 'favorite_ips'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    ip = db.Column(db.String(45), nullable=False, unique=True, index=True)
+    port = db.Column(db.Integer, default=443)
+    label = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    last_checked = db.Column(db.DateTime, nullable=True)
+    last_ok = db.Column(db.Boolean, nullable=True)
+    last_ping = db.Column(db.Float, nullable=True)
+    last_colo = db.Column(db.String(10), nullable=True)
+
+    def to_dict(self, uptime=None, checks=0):
+        return {
+            'id': self.id, 'ip': self.ip, 'port': self.port, 'label': self.label or '',
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_checked': self.last_checked.isoformat() if self.last_checked else None,
+            'last_ok': self.last_ok, 'last_ping': self.last_ping, 'last_colo': self.last_colo or '',
+            'uptime_24h': uptime, 'checks_24h': checks,
+        }
+
+
+class IPCheck(db.Model):
+    """History of favorite-IP checks (kept for 30 days)."""
+    __tablename__ = 'ip_checks'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    ip = db.Column(db.String(45), nullable=False, index=True)
+    ok = db.Column(db.Boolean, default=False)
+    ping = db.Column(db.Float, nullable=True)
+    colo = db.Column(db.String(10), nullable=True)
+    checked_at = db.Column(db.DateTime, default=utcnow, index=True)
