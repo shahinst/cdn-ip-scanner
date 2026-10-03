@@ -441,7 +441,9 @@ tests/                      # pytest test suite
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Read **[CONTRIBUTING.md](CONTRIBUTING.md)** first — it covers the project
+layout, how to run and test locally, the rules a PR must follow, and how releases are made.
+Found a bug? Attach the report from **⚙️ Settings → Diagnostics → Download report** to your issue.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing`)
