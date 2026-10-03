@@ -2,7 +2,7 @@
   <img src="image/logo.png" alt="CDN IP Scanner Logo" width="80" height="80">
 </p>
 
-<h1 align="center">CDN IP Scanner V2.2</h1>
+<h1 align="center">CDN IP Scanner V2.3</h1>
 
 <p align="center">
   <b>High Accuracy &bull; Ultra Fast &bull; Real-Time</b>
@@ -56,6 +56,9 @@ The scanner uses a proven **5-attempt verification method** with `/cdn-cgi/trace
 | **Xray Real Test** | V2Ray scans: test the best IPs through Xray-core with your own config — only IPs that really carry traffic pass |
 | **Favorites & Monitoring** | Save IPs with ☆, re-check them automatically (5 min – 3 h), see 24h uptime, and get a Telegram message when one stops working |
 | **IPv4 + IPv6** | Scan IPv4 and IPv6 ranges (Cloudflare IPv6 ranges included) |
+| **Scan Profiles** | One click: Quick, Balanced, Thorough or Mobile networks — or your own settings |
+| **Filter & Sort** | Filter results by IP or data center, hide failed real tests, sort by ping, score, speed or real delay |
+| **Clash & sing-box Export** | Download the working IPs as a ready Clash/Mihomo or sing-box config with automatic fastest-IP selection |
 | **Multi-Language** | Full support for English, فارسی (Persian), 中文 (Chinese), Русский (Russian) |
 | **Dark/Light Theme** | Beautiful modern UI with dark mode support |
 | **Export Results** | Save results as JSON, Excel (.xlsx), or Text (IPs only) |
@@ -111,6 +114,9 @@ Every release includes `SHA256SUMS.txt` to verify the downloads.
 > On macOS, if the app "can't be opened", right-click it → *Open*, or run `xattr -dr com.apple.quarantine CDN-IP-Scanner.app`.
 > The builds are not code-signed yet.
 
+On Linux servers installed with `install.sh`, the service runs as the unprivileged `cdnscanner` user
+with a hardened systemd unit: the code is read-only and only `data/` is writable.
+
 Data (database, settings, `scanner.log`) is stored in `%APPDATA%\CDN-IP-Scanner` (Windows),
 `~/Library/Application Support/CDN-IP-Scanner` (macOS) or `~/.local/share/cdn-ip-scanner` (Linux).
 
@@ -158,6 +164,9 @@ journalctl -u cdn-ip-scanner -f
 
 # Restart
 systemctl restart cdn-ip-scanner
+
+# Update to a new version (keeps your database): re-run the installer
+sudo bash install.sh
 
 # Uninstall
 bash /opt/cdn-ip-scanner/uninstall.sh
@@ -254,6 +263,9 @@ Watch the full installation and usage tutorial on YouTube:
 | **تست واقعی با Xray** | در اسکن V2Ray، بهترین آی‌پی‌ها با کانفیگ خود شما از داخل Xray-core تست می‌شوند — فقط آی‌پی‌هایی که واقعاً کار می‌کنند |
 | **علاقه‌مندی‌ها و پایش** | ذخیره آی‌پی با ☆، بررسی خودکار دوره‌ای (۵ دقیقه تا ۳ ساعت)، نمایش پایداری ۲۴ ساعته و پیام تلگرام وقتی آی‌پی از کار بیفتد |
 | **IPv4 و IPv6** | اسکن رنج‌های IPv4 و IPv6 (شامل رنج‌های IPv6 کلودفلر) |
+| **پروفایل‌های اسکن** | با یک کلیک: سریع، متعادل، کامل یا اینترنت موبایل — یا تنظیمات خودتان |
+| **فیلتر و مرتب‌سازی** | فیلتر نتایج بر اساس IP یا دیتاسنتر، پنهان کردن تست‌های ناموفق، مرتب‌سازی بر اساس پینگ، امتیاز، سرعت یا تأخیر واقعی |
+| **خروجی Clash و sing-box** | دانلود آی‌پی‌های سالم به صورت کانفیگ آماده Clash/Mihomo یا sing-box با انتخاب خودکار سریع‌ترین آی‌پی |
 | **چندزبانه** | پشتیبانی کامل از فارسی، English، 中文، Русский |
 | **تم تاریک/روشن** | رابط کاربری مدرن و زیبا با پشتیبانی حالت تاریک |
 | **خروجی نتایج** | ذخیره نتایج به صورت JSON، اکسل (xlsx.) یا متن (فقط آی‌پی) |
@@ -358,6 +370,9 @@ journalctl -u cdn-ip-scanner -f
 
 # ریستارت
 systemctl restart cdn-ip-scanner
+
+# به‌روزرسانی به نسخه جدید (دیتابیس حفظ می‌شود): اجرای دوباره نصب‌کننده
+sudo bash install.sh
 
 # حذف
 bash /opt/cdn-ip-scanner/uninstall.sh
