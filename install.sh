@@ -224,13 +224,11 @@ get_user_input() {
     read -rp "$(echo -e "${BLUE}Backend port (default 8080): ${NC}")" APP_PORT
     APP_PORT="${APP_PORT:-8080}"
 
-    # Ensure not 80 or 443
-    case "$APP_PORT" in
-        80|443)
-            warn "Port ${APP_PORT} is reserved for Nginx. Using 8080."
-            APP_PORT=8080
-            ;;
-    esac
+    # The service runs as an unprivileged user, so it needs a numeric port >= 1024
+    if ! [[ "$APP_PORT" =~ ^[0-9]+$ ]] || [ "$APP_PORT" -lt 1024 ] || [ "$APP_PORT" -gt 65535 ]; then
+        warn "Port ${APP_PORT} is not usable (must be 1024-65535; 80/443 are for Nginx). Using 8080."
+        APP_PORT=8080
+    fi
 
     # Iran: ask user if server is in Iran (for mirror + DNS)
     echo ""
@@ -612,6 +610,8 @@ SECRET_KEY=${SECRET_KEY}
 PORT=${APP_PORT}
 PANEL_USER=${PANEL_USER}
 PANEL_PASS=${PANEL_PASS}
+# Server installs are updated by re-running install.sh (the app code is read-only for the service)
+ALLOW_WEB_UPDATE=false
 ENVEOF
 
     chmod 600 "$APP_DIR/.env"
@@ -1230,6 +1230,20 @@ NGINXEOF
     log "Nginx configured and running"
 }
 
+# ───────── Service user ─────────
+# The app runs as an unprivileged system user, never as root.
+ensure_app_user() {
+    if id "$APP_USER" >/dev/null 2>&1; then
+        echo -e "    ${GREEN}System user ${APP_USER} exists ✔${NC}"
+        return
+    fi
+    local nologin
+    nologin="$(command -v nologin 2>/dev/null || echo /bin/false)"
+    useradd --system --no-create-home --home-dir /nonexistent --shell "$nologin" "$APP_USER" >> "$LOG_FILE" 2>&1 \
+        || die "Could not create system user ${APP_USER}"
+    echo -e "    ${GREEN}System user ${APP_USER} created (no login shell) ✔${NC}"
+}
+
 # ───────── Systemd service ─────────
 create_service() {
     echo ""
@@ -1238,8 +1252,12 @@ create_service() {
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
 
+    echo -e "  ${BLUE}Preparing service user...${NC}"
+    ensure_app_user
+    echo ""
     echo -e "  ${BLUE}Writing service file...${NC}"
     echo -e "    Service name  : ${SERVICE_NAME}"
+    echo -e "    Runs as       : ${APP_USER} (unprivileged)"
     echo -e "    Exec command  : ${APP_DIR}/venv/bin/python run.py --host 127.0.0.1 --port ${APP_PORT}"
     echo -e "    Auto-restart  : always (3s delay)"
     echo -e "    Working dir   : ${APP_DIR}"
@@ -1247,14 +1265,14 @@ create_service() {
 
     cat > "/etc/systemd/system/${SERVICE_NAME}.service" << SVCEOF
 [Unit]
-Description=CDN IP Scanner V2.0
+Description=CDN IP Scanner
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=root
-Group=root
+User=${APP_USER}
+Group=${APP_USER}
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=${APP_DIR}/.env
 ExecStart=${APP_DIR}/venv/bin/python ${APP_DIR}/run.py --host 127.0.0.1 --port ${APP_PORT} --no-browser
@@ -1266,6 +1284,17 @@ SyslogIdentifier=${APP_NAME}
 LimitNOFILE=65535
 LimitNPROC=4096
 Environment=PYTHONUNBUFFERED=1
+# Hardening: only the data directory is writable; no privilege escalation
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=${APP_DIR}/data
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
 
 [Install]
 WantedBy=multi-user.target
@@ -1400,19 +1429,24 @@ set_permissions() {
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
 
-    printf "    %-40s" "${APP_DIR}/ → root:root 755"
+    ensure_app_user
+
+    # Code: owned by root, read-only for the service user
+    printf "    %-40s" "${APP_DIR}/ → root:root 755 (read-only)"
     chown -R root:root "$APP_DIR"
-    chmod -R 755 "$APP_DIR"
+    chmod -R u=rwX,go=rX "$APP_DIR"
     echo -e " ${GREEN}✔${NC}"
 
-    printf "    %-40s" "${APP_DIR}/.env → 600 (private)"
-    chmod 600 "$APP_DIR/.env"
+    printf "    %-40s" "${APP_DIR}/.env → root:${APP_USER} 640"
+    chown root:"$APP_USER" "$APP_DIR/.env"
+    chmod 640 "$APP_DIR/.env"
     echo -e " ${GREEN}✔${NC}"
 
-    # The service runs as root, so the data dir (DB + secret key) only needs to be root-accessible
-    printf "    %-40s" "${APP_DIR}/data/ → 700 (private)"
+    # Data (DB, secret key, Xray binary): the only place the service can write
+    printf "    %-40s" "${APP_DIR}/data/ → ${APP_USER} 700"
     mkdir -p "$APP_DIR/data"
-    chmod 700 "$APP_DIR/data" 2>/dev/null || true
+    chown -R "$APP_USER":"$APP_USER" "$APP_DIR/data"
+    chmod 700 "$APP_DIR/data"
     echo -e " ${GREEN}✔${NC}"
 
     printf "    %-40s" "SSL key → 600 (private)"
