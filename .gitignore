@@ -19,3 +19,4 @@ data/
 build/
 dist/
 release/
+ci-bin/

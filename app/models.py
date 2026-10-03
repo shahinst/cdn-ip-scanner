@@ -18,6 +18,7 @@ class ScanResult(db.Model):
     operator = db.Column(db.String(100), nullable=True)
     colo = db.Column(db.String(10), nullable=True)   # CDN edge data center, e.g. FRA
     speed = db.Column(db.Float, nullable=True)       # download speed in KB/s (if tested)
+    real_delay = db.Column(db.Float, nullable=True)  # Xray real test: ms, -1 = failed, NULL = not tested
     scan_session_id = db.Column(db.Integer, db.ForeignKey('scan_sessions.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=utcnow)
 
@@ -31,6 +32,7 @@ class ScanResult(db.Model):
             'operator': self.operator or '',
             'colo': self.colo or '',
             'speed': self.speed,
+            'real_delay': self.real_delay,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -120,6 +122,7 @@ class ScanLog(db.Model):
 _ADDED_COLUMNS = [
     ('scan_results', 'colo', 'VARCHAR(10)'),
     ('scan_results', 'speed', 'FLOAT'),
+    ('scan_results', 'real_delay', 'FLOAT'),
     ('scan_sessions', 'v2ray_config', 'TEXT'),
 ]
 

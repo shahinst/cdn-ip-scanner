@@ -33,6 +33,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt pytest
+      - name: Install Xray-core (for the real-test integration tests)
+        shell: bash
+        run: |
+          python -c "from app.scanner.xray import install_xray; print(install_xray('ci-bin'))"
+          echo "XRAY_PATH=$PWD/ci-bin/$( [ "$RUNNER_OS" = Windows ] && echo xray.exe || echo xray )" >> "$GITHUB_ENV"
       - name: Run tests
         run: python -m pytest -v
 

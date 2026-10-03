@@ -150,6 +150,7 @@
                         <th data-t="colo_hdr">Colo</th>
                         <th data-t="speed_hdr">Speed</th>
                         <th id="thOperator" class="hidden" data-t="operator_hdr">Operator</th>
+                        <th id="thReal" class="hidden" data-t="real_hdr">Real delay</th>
                         <th id="thDownload" class="download-col hidden" data-t="download_hdr">Download</th>
                     </tr>
                 </thead>
@@ -237,6 +238,25 @@
                     <label class="setting-field"><span data-t="settings_speed_url">Test URL ({bytes} = size)</span>
                         <input type="text" id="settingSpeedUrl" class="input" dir="ltr" value="https://speed.cloudflare.com/__down?bytes={bytes}" />
                     </label>
+                </div>
+                <div class="setting-group">
+                    <h4 data-t="settings_xray">Real test with Xray-core (V2Ray scan)</h4>
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="settingXrayTest" />
+                        <span data-t="settings_xray_desc">Test the best IPs through your own config</span>
+                    </label>
+                    <div class="xray-status-row">
+                        <span id="xrayStatus" class="card-hint"></span>
+                        <button type="button" class="btn btn-sm hidden" id="btnInstallXray" data-t="xray_install_btn">Install Xray</button>
+                    </div>
+                    <div class="setting-fields">
+                        <label class="setting-field"><span data-t="settings_xray_count">Number of IPs to test</span>
+                            <input type="number" id="settingXrayCount" class="input" value="20" min="1" max="500" />
+                        </label>
+                        <label class="setting-field"><span data-t="settings_xray_url">Test URL</span>
+                            <input type="text" id="settingXrayUrl" class="input" dir="ltr" value="https://www.gstatic.com/generate_204" />
+                        </label>
+                    </div>
                 </div>
                 <div class="setting-group">
                     <h4 data-t="settings_theme">Theme</h4>

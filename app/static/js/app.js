@@ -62,6 +62,11 @@ const T = {
         qr_btn: "QR", sub_btn: "\uD83D\uDD17 Subscription link", copy_all_btn: "\uD83D\uDCCB Copy all configs",
         sub_copied: "Subscription link copied. Add it in v2rayN / v2rayNG / Hiddify.",
         configs_copied: "Configs copied", qr_title: "Scan with your phone",
+        real_hdr: "Real delay", settings_xray: "Real test with Xray-core (V2Ray scan)",
+        settings_xray_desc: "Test the best IPs through your own config (only IPs that really work)",
+        settings_xray_count: "Number of IPs to test", settings_xray_url: "Test URL",
+        xray_testing: "Real test through Xray...", xray_missing: "Xray-core is not installed.",
+        xray_install_btn: "Install Xray", xray_installing: "Downloading Xray...", xray_ready: "Xray ready:",
         scan_complete: "Done! {found} IPs in {time}s", ip_copied: "IP copied!",
     },
     fa: {
@@ -111,6 +116,11 @@ const T = {
         qr_btn: "QR", sub_btn: "\uD83D\uDD17 لینک ساب‌اسکریپشن", copy_all_btn: "\uD83D\uDCCB کپی همه کانفیگ‌ها",
         sub_copied: "لینک ساب‌اسکریپشن کپی شد. آن را در v2rayN / v2rayNG / Hiddify اضافه کنید.",
         configs_copied: "کانفیگ‌ها کپی شد", qr_title: "با گوشی اسکن کنید",
+        real_hdr: "تأخیر واقعی", settings_xray: "تست واقعی با Xray-core (اسکن V2Ray)",
+        settings_xray_desc: "بهترین آی‌پی‌ها با کانفیگ خود شما تست شوند (فقط آی‌پی‌هایی که واقعاً کار می‌کنند)",
+        settings_xray_count: "تعداد آی‌پی برای تست", settings_xray_url: "آدرس تست",
+        xray_testing: "در حال تست واقعی با Xray...", xray_missing: "Xray-core نصب نیست.",
+        xray_install_btn: "نصب Xray", xray_installing: "در حال دانلود Xray...", xray_ready: "Xray آماده است:",
         scan_complete: "\u0627\u062A\u0645\u0627\u0645! {found} IP \u062F\u0631 {time} \u062B\u0627\u0646\u06CC\u0647", ip_copied: "IP \u06A9\u067E\u06CC \u0634\u062F!",
     },
     zh: {
@@ -229,6 +239,8 @@ function initSocket() {
         if (status) {
             status.textContent = data.phase === 'speed'
                 ? t('speed_testing') + ' ' + localNum(data.done) + '/' + localNum(data.total)
+                : data.phase === 'xray'
+                ? t('xray_testing') + ' ' + localNum(data.done) + '/' + localNum(data.total)
                 : localNum(data.percent) + '% | ' + localNum(data.speed.toFixed(0)) + ' IP/s';
         }
         document.getElementById('statFound').textContent = localNum(resultCount);
@@ -262,9 +274,14 @@ function initSocket() {
     socket.on('scan_result_update', data => {
         const row = document.querySelector('#resultsBody tr[data-ip="' + CSS.escape(data.ip) + '"]');
         if (!row) return;
-        row.querySelector('.speed-cell').textContent = formatSpeed(data.speed);
+        if (data.speed !== undefined) row.querySelector('.speed-cell').textContent = formatSpeed(data.speed);
         if (data.score != null) {
             row.querySelector('.score-cell').textContent = localNum(Number(data.score).toFixed(0)) + '/' + localNum('100');
+        }
+        if (data.real_delay !== undefined) {
+            const cell = row.querySelector('.real-cell');
+            if (cell) cell.textContent = formatRealDelay(data.real_delay);
+            row.classList.toggle('row-failed', data.real_delay !== null && data.real_delay < 0);
         }
     });
 
@@ -282,6 +299,8 @@ function initSocket() {
         addLog('INFO', 'Scan status: ' + data.status + ', total IPs: ' + data.total);
         if (data.status === 'speed_testing') {
             document.getElementById('progressStatus').textContent = t('speed_testing');
+        } else if (data.status === 'xray_testing') {
+            document.getElementById('progressStatus').textContent = t('xray_testing');
         }
     });
 }
@@ -333,6 +352,7 @@ function addResultRow(data) {
         cells += '<td>' + operatorText + '</td>';
     }
     if (isV2ray) {
+        cells += '<td class="real-cell">' + formatRealDelay(data.real_delay) + '</td>';
         cells += '<td class="download-col"><button type="button" class="btn btn-sm btn-download" data-ip="' + ipText + '">' + (lang === 'fa' ? '\u062F\u0627\u0646\u0644\u0648\u062F' : 'Download') + '</button>' +
             ' <button type="button" class="btn btn-sm btn-qr">' + t('qr_btn') + '</button></td>';
     }
@@ -347,6 +367,37 @@ function addResultRow(data) {
         row.querySelector('.btn-qr')?.addEventListener('click', () => showConfigQr(data.ip));
     }
     tbody.appendChild(row);
+}
+
+function formatRealDelay(delay) {
+    if (delay == null) return '\u2014';
+    if (delay < 0) return '\u274C';
+    return '\u2705 ' + localNum(Math.round(delay)) + ' ms';
+}
+
+async function refreshXrayStatus() {
+    const el = document.getElementById('xrayStatus');
+    const btn = document.getElementById('btnInstallXray');
+    if (!el) return;
+    const st = await api('/xray/status');
+    if (st.available) {
+        el.textContent = t('xray_ready') + ' ' + (st.version || '');
+        btn?.classList.add('hidden');
+    } else {
+        el.textContent = t('xray_missing');
+        btn?.classList.toggle('hidden', st.can_install === false);
+    }
+}
+
+async function installXray() {
+    const el = document.getElementById('xrayStatus');
+    const btn = document.getElementById('btnInstallXray');
+    if (btn) btn.disabled = true;
+    if (el) el.textContent = t('xray_installing');
+    const res = await api('/xray/install', 'POST');
+    if (btn) btn.disabled = false;
+    if (res.error) { if (el) el.textContent = res.error; return; }
+    refreshXrayStatus();
 }
 
 function formatSpeed(speed) {
@@ -484,6 +535,10 @@ async function loadSettings() {
     if (s.speed_test_size) document.getElementById('settingSpeedSize').value = s.speed_test_size;
     if (s.speed_test_count) document.getElementById('settingSpeedCount').value = s.speed_test_count;
     if (s.speed_test_url) document.getElementById('settingSpeedUrl').value = s.speed_test_url;
+    const xrayEl = document.getElementById('settingXrayTest');
+    if (xrayEl) xrayEl.checked = (s.xray_test === 'true');
+    if (s.xray_test_count) document.getElementById('settingXrayCount').value = s.xray_test_count;
+    if (s.xray_test_url) document.getElementById('settingXrayUrl').value = s.xray_test_url;
     if (s.theme) setTheme(s.theme);
     // Log checkbox
     const logEl = document.getElementById('settingLogEnabled');
@@ -515,6 +570,9 @@ async function saveSettings() {
         speed_test_size: document.getElementById('settingSpeedSize')?.value || '1024',
         speed_test_count: document.getElementById('settingSpeedCount')?.value || '10',
         speed_test_url: document.getElementById('settingSpeedUrl')?.value || '',
+        xray_test: document.getElementById('settingXrayTest')?.checked ? 'true' : 'false',
+        xray_test_count: document.getElementById('settingXrayCount')?.value || '20',
+        xray_test_url: document.getElementById('settingXrayUrl')?.value || '',
         log_enabled: logEnabledVal ? 'true' : 'false',
         debug_enabled: debugEnabledVal ? 'true' : 'false',
         theme: theme,
@@ -558,6 +616,7 @@ async function startScan() {
     if (thOperator) thOperator.classList.toggle('hidden', method === 'cloud');
     var thDownload = document.getElementById('thDownload');
     if (thDownload) thDownload.classList.toggle('hidden', method !== 'v2ray');
+    document.getElementById('thReal')?.classList.toggle('hidden', method !== 'v2ray');
 
     addLog('INFO', 'Scan started: method=' + method);
 
@@ -583,6 +642,9 @@ async function startScan() {
         speed_test_size: document.getElementById('settingSpeedSize')?.value || '1024',
         speed_test_count: document.getElementById('settingSpeedCount')?.value || '10',
         speed_test_url: document.getElementById('settingSpeedUrl')?.value || '',
+        xray_test: document.getElementById('settingXrayTest')?.checked || false,
+        xray_test_count: document.getElementById('settingXrayCount')?.value || '20',
+        xray_test_url: document.getElementById('settingXrayUrl')?.value || '',
     });
 
     if (data.error || !data.session_id) {
@@ -873,6 +935,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('operatorCountry')?.addEventListener('change', loadOperators);
     document.getElementById('btnFetchAllOps')?.addEventListener('click', fetchAllOperators);
     document.getElementById('btnCopySub')?.addEventListener('click', copySubscriptionLink);
+    document.getElementById('btnInstallXray')?.addEventListener('click', installXray);
+    refreshXrayStatus();
     document.getElementById('btnCopyAllConfigs')?.addEventListener('click', copyAllConfigs);
 
     // Settings modal
