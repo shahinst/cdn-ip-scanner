@@ -41,7 +41,7 @@ import kotlinx.coroutines.withContext
 
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
-    Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
+    Text(title.uppercase(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
     content()
 }
 

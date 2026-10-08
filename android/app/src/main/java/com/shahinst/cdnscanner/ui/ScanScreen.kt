@@ -13,6 +13,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.background
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -112,14 +118,16 @@ fun ScanScreen() {
 
     LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
-            Card(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                Column(Modifier.padding(12.dp)) {
-                    LinearProgressIndicator(progress = { (state.percent / 100.0).toFloat() }, modifier = Modifier.fillMaxWidth())
-                    Text(statusText, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("${stringResource(R.string.found)}: ${state.found}")
-                        Text("${stringResource(R.string.scanned)}: ${state.done}")
-                        Text("${stringResource(R.string.elapsed)}: ${state.elapsed.toInt()}s")
+            Card(Modifier.fillMaxWidth().padding(top = 8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+                Column(Modifier.padding(14.dp)) {
+                    Text(statusText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    LinearProgressIndicator(progress = { (state.percent / 100.0).toFloat() },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(8.dp).clip(RoundedCornerShape(4.dp)))
+                    Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        StatTile(state.found.toString(), stringResource(R.string.found), Modifier.weight(1f))
+                        StatTile(state.done.toString(), stringResource(R.string.scanned), Modifier.weight(1f), MaterialTheme.colorScheme.secondary)
+                        StatTile("${state.elapsed.toInt()}s", stringResource(R.string.elapsed), Modifier.weight(1f), MaterialTheme.colorScheme.tertiary)
                     }
                     if (speedHist.size >= 2) {
                         Text(stringResource(R.string.chart_speed), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 6.dp))
@@ -127,13 +135,13 @@ fun ScanScreen() {
                     }
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { start() }, enabled = !state.running && !busy, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.start_scan)) }
-                        OutlinedButton(onClick = { ScanEngine.stop() }, enabled = state.running, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.stop_scan)) }
+                        FilledTonalButton(onClick = { ScanEngine.stop() }, enabled = state.running, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.stop_scan)) }
                     }
                 }
             }
         }
         item {
-            Text(stringResource(R.string.method), style = MaterialTheme.typography.titleSmall)
+            SectionTitle(stringResource(R.string.method))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = method == "cloud", onClick = { method = "cloud" }, label = { Text(stringResource(R.string.method_cloud)) })
                 FilterChip(selected = method == "v2ray", onClick = { method = "v2ray" }, label = { Text(stringResource(R.string.method_v2ray)) })
@@ -146,7 +154,7 @@ fun ScanScreen() {
                  else stringResource(R.string.v2ray_hint), style = MaterialTheme.typography.bodySmall)
         }
         item {
-            Text(stringResource(R.string.ranges), style = MaterialTheme.typography.titleSmall)
+            SectionTitle(stringResource(R.string.ranges))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DropdownField(stringResource(R.string.range_source), listOf(
                     "builtin" to stringResource(R.string.src_builtin), "cloudflare" to stringResource(R.string.src_cloudflare),
@@ -158,7 +166,7 @@ fun ScanScreen() {
                 minLines = 2, maxLines = 6, modifier = Modifier.fillMaxWidth(), textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
         }
         item {
-            Text(stringResource(R.string.profile), style = MaterialTheme.typography.titleSmall)
+            SectionTitle(stringResource(R.string.profile))
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("mobile" to R.string.profile_mobile, "quick" to R.string.profile_quick, "balanced" to R.string.profile_balanced,
                     "thorough" to R.string.profile_thorough, "custom" to R.string.profile_custom).forEach { (key, label) ->
@@ -181,8 +189,8 @@ fun ScanScreen() {
                 operator, { operator = it }, Modifier.fillMaxWidth())
         }
         item {
-            Text(stringResource(R.string.log), style = MaterialTheme.typography.titleSmall)
-            Column(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+            SectionTitle(stringResource(R.string.log))
+            Column(Modifier.fillMaxWidth().padding(bottom = 16.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.small).padding(10.dp)) {
                 logs.takeLast(40).forEach { l ->
                     Text("[${l.level}] ${l.message}", style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                         color = when (l.level) { "ERROR" -> MaterialTheme.colorScheme.error; "WARN" -> MaterialTheme.colorScheme.tertiary; else -> MaterialTheme.colorScheme.onSurfaceVariant })

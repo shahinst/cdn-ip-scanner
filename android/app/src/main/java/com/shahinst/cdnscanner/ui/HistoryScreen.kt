@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -34,7 +35,7 @@ fun HistoryScreen(onLoaded: () -> Unit) {
         if (sessions.isEmpty()) Text(stringResource(R.string.history_empty), modifier = Modifier.padding(16.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(sessions, key = { it.id }) { s ->
-                Card(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
                     Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(fmtDateTime(s.id), fontWeight = FontWeight.Bold)

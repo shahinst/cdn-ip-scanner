@@ -1,0 +1,45 @@
+{
+  "name": "cdn-ip-scanner",
+  "version": "3.0.0",
+  "description": "CDN IP Scanner - find the fastest Cloudflare/Fastly edge IPs (web UI, V2Ray config tests, favorites monitor)",
+  "type": "module",
+  "bin": {
+    "cdn-ip-scanner": "bin/cli.js"
+  },
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin",
+    "src",
+    "public",
+    "views",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node bin/cli.js",
+    "test": "node --test",
+    "prepack": "node scripts/sync-version.js && node scripts/copy-assets.js"
+  },
+  "keywords": [
+    "cdn",
+    "cloudflare",
+    "ip",
+    "scanner",
+    "v2ray",
+    "xray"
+  ],
+  "author": "shahinst",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shahinst/cdn-ip-scanner"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "nunjucks": "^3.2.4",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.0"
+  }
+}

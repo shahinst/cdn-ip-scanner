@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -134,8 +135,9 @@ fun ResultsScreen() {
 private fun ResultRow(r: FoundIp, rank: Int, isFav: Boolean, v2ray: Boolean, onQr: () -> Unit) {
     val ctx = LocalContext.current
     val dim = !r.alive || (r.realDelay != null && r.realDelay < 0)
-    Card(Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (dim) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLowest),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+        Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).clickable { copyText(ctx, r.ip); toast(ctx, ctx.getString(R.string.ip_copied, r.ip)) }) {
                 Text("#$rank  ${r.ip}", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
                     color = if (dim) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface)
@@ -149,7 +151,7 @@ private fun ResultRow(r: FoundIp, rank: Int, isFav: Boolean, v2ray: Boolean, onQ
                 val extra = ArrayList<String>()
                 r.speed?.let { extra.add(stringResource(R.string.speed_fmt, it)) }
                 r.realDelay?.let { extra.add(if (it < 0) stringResource(R.string.real_failed) else stringResource(R.string.real_ok, Math.round(it))) }
-                if (!r.alive) extra.add(stringResource(R.string.dead))
+                if (!r.alive) Badge(stringResource(R.string.dead), MaterialTheme.colorScheme.error)
                 if (extra.isNotEmpty()) Text(extra.joinToString(" · "), style = MaterialTheme.typography.bodySmall,
                     color = if (dim) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
             }

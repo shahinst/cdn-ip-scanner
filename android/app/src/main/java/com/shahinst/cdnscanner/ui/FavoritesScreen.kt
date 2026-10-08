@@ -12,6 +12,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,14 +56,14 @@ fun FavoritesScreen() {
         if (favs.isEmpty()) Text(stringResource(R.string.fav_empty), modifier = Modifier.padding(16.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(favs, key = { it.ip }) { f ->
-                Card(Modifier.fillMaxWidth()) {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
                     Row(Modifier.padding(start = 12.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         val (status, color) = when (f.lastOk) {
-                            true -> stringResource(R.string.fav_up) to MaterialTheme.colorScheme.primary
+                            true -> stringResource(R.string.fav_up) to MaterialTheme.colorScheme.tertiary
                             false -> stringResource(R.string.fav_down) to MaterialTheme.colorScheme.error
                             null -> stringResource(R.string.fav_unknown) to MaterialTheme.colorScheme.outline
                         }
-                        Text(status, color = color, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 10.dp))
+                        Box(Modifier.padding(end = 10.dp)) { Badge(status, color) }
                         Column(Modifier.weight(1f)) {
                             Text("${f.ip}:${f.port}", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                             val parts = ArrayList<String>()

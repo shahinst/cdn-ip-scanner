@@ -10,6 +10,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -100,4 +104,26 @@ fun Sparkline(points: List<Pair<Double, Double>>, modifier: Modifier = Modifier,
         drawPath(path, color, style = Stroke(width = 3.dp.toPx()))
         drawLine(color.copy(alpha = 0.3f), Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx())
     }
+}
+
+/** Small tonal tile with a value and a caption (scan summary). */
+@Composable
+fun StatTile(value: String, label: String, modifier: Modifier = Modifier, tint: Color = MaterialTheme.colorScheme.primary) {
+    Column(modifier.background(tint.copy(alpha = 0.10f), MaterialTheme.shapes.small).padding(horizontal = 12.dp, vertical = 10.dp)) {
+        Text(value, style = MaterialTheme.typography.titleLarge, color = tint, fontWeight = FontWeight.Bold)
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+fun SectionTitle(text: String) {
+    Text(text.uppercase(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 6.dp, bottom = 2.dp))
+}
+
+/** Pill badge used for statuses (UP / DOWN / dead ...). */
+@Composable
+fun Badge(text: String, color: Color) {
+    Text(text, style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.Bold,
+        modifier = Modifier.background(color.copy(alpha = 0.12f), MaterialTheme.shapes.extraSmall).padding(horizontal = 8.dp, vertical = 3.dp))
 }

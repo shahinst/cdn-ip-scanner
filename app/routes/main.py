@@ -4,13 +4,14 @@ Author: shahinst
 """
 
 from flask import Blueprint, render_template, current_app
+from app.models import AppSetting
 
 main_bp = Blueprint('main', __name__)
 
 
 @main_bp.route('/')
 def index():
-    return render_template('index.html',
+    return render_template('index.html', theme=AppSetting.get('theme', 'light'),
                            version=current_app.config.get('VERSION', '2.0'),
                            author=current_app.config.get('AUTHOR', 'shahinst'))
 
@@ -20,6 +21,6 @@ def index():
 def scanner(lang='en'):
     if lang not in ('en', 'fa', 'zh', 'ru'):
         lang = 'en'
-    return render_template('scanner.html', lang=lang,
+    return render_template('scanner.html', lang=lang, theme=AppSetting.get('theme', 'light'),
                            version=current_app.config.get('VERSION', '2.0'),
                            author=current_app.config.get('AUTHOR', 'shahinst'))

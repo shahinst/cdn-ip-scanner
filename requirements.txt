@@ -1,5 +1,4 @@
 # CDN IP Scanner - Dependencies (Linux, Windows, macOS)
-# Desktop window + packaging extras: see requirements-desktop.txt
 
 # Core web framework
 Flask>=3.0.0

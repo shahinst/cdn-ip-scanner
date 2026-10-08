@@ -14,8 +14,9 @@ python3 -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activ
 pip install -r requirements.txt pytest
 
 python run.py --port 8080        # web UI at http://127.0.0.1:8080
-python desktop.py                # desktop window (needs requirements-desktop.txt)
 python -m pytest                 # run the tests
+
+cd node && npm install && npm test    # npm app (Node 18+): node bin/cli.js --port 8080
 ```
 
 Optional: install Xray-core for the real-test integration tests
@@ -27,7 +28,6 @@ then set `XRAY_PATH` to the printed path). Without it those tests are skipped.
 | Path | What lives there |
 |------|------------------|
 | `run.py` | Web server entry point. Applies gevent monkey-patching **first** — keep it that way. |
-| `desktop.py` | Desktop launcher: runs the server in a child process and opens a window or the browser. |
 | `app/__init__.py` | Flask app factory, same-origin (CSRF) check, optional basic auth, DB setup. |
 | `app/config.py` | Configuration; version comes from the `version` file. |
 | `app/models.py` | SQLAlchemy models + `migrate_schema()` for columns added after a release. |
@@ -39,7 +39,7 @@ then set `XRAY_PATH` to the printed path). Without it those tests are skipped.
 | `app/scanner/speedtest.py` | Download speed test through a given IP. |
 | `app/scanner/client_export.py` | Clash/Mihomo and sing-box export. |
 | `app/static/js/app.js`, `app/templates/` | Frontend (vanilla JS, no build step). |
-| `packaging/` | PyInstaller build (`build.py`) and the smoke test for built apps. |
+| `node/` | npm app `cdn-ip-scanner`: Node.js port of the server (`bin/cli.js`, `src/server.js`, `src/routes/`, `src/scanner/`, `src/store.js`) reusing `app/static` and `app/templates`. Tests: `npm test` (node:test). |
 | `install.sh` | Linux server installer (nginx, TLS, systemd as an unprivileged user). |
 | `tests/` | pytest suite. `conftest.py` has local fake-CDN HTTP servers. |
 | `android/` | Android app (Kotlin / Jetpack Compose). `cd android && ./gradlew assembleDebug testDebugUnitTest` needs JDK 17 and the Android SDK. |
@@ -67,23 +67,24 @@ then set `XRAY_PATH` to the printed path). Without it those tests are skipped.
 
 ## Pull request checklist
 
-- [ ] `python -m pytest` passes locally
+- [ ] `python -m pytest` passes locally (and `npm test` in `node/` if you touched the server or the frontend)
 - [ ] `node --check app/static/js/app.js` and `bash -n install.sh` pass
 - [ ] New strings translated (`en` + `fa`)
 - [ ] README updated if the feature is user-visible
 - [ ] No secrets, personal data or large binaries committed
 
-CI runs the tests on Linux, Windows and macOS (Python 3.10 and 3.13), and builds +
-smoke-tests the desktop app for Windows x64, macOS arm64/x64 and Linux x64/arm64.
+CI runs the Python tests on Linux, Windows and macOS (Python 3.10 and 3.13), the Node
+suite on the same three systems (Node 18 and 22), and builds + unit-tests the Android app.
 A PR is merged only when all checks are green.
 
 ## Releases
 
-1. Bump the `version` file (e.g. `2.4`) in the PR that finishes the release.
+1. Bump the `version` file (e.g. `3.0`) in the PR that finishes the release (npm, Android and Python read it).
 2. After it is merged, tag **that merge commit on `main`**:
-   `git fetch origin && git tag v2.4 origin/main && git push origin v2.4`
-3. The *Build & Release* workflow builds all platforms and publishes them with
-   `SHA256SUMS.txt`. It fails on purpose if the tag and the `version` file differ.
+   `git fetch origin && git tag v3.0 origin/main && git push origin v3.0`
+3. The *Build & Release* workflow packs the npm app, builds the Android APK and publishes both
+   with `SHA256SUMS.txt`; with the `NPM_TOKEN` secret it also runs `npm publish`. It fails on
+   purpose if the tag and the `version` file differ.
 
 ## Reporting bugs
 
