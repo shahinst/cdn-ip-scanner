@@ -11,7 +11,7 @@ venv/
 .venv/
 
 # Local data / secrets
-data/
+/data/
 .env
 *.log
 
