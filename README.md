@@ -255,6 +255,22 @@ subscription link, QR codes, Clash / sing-box export, download speed test, favor
 monitoring and Telegram alerts, scan history, re-test, TXT/JSON/CSV share, and the four UI languages.
 Scans run in a foreground service so they keep going while the screen is off.
 
+### 📱 Android App Demo
+
+<p align="center">
+  <img src="image/android/demo.gif" alt="CDN IP Scanner Android demo: scan, results, favorites" width="260">
+</p>
+
+| Scan | Results | Favorites | Settings |
+|:---:|:---:|:---:|:---:|
+| ![Scan](image/android/scan.png) | ![Results](image/android/results.png) | ![Favorites](image/android/favorites.png) | ![Settings](image/android/settings.png) |
+
+Persian UI (RTL):
+
+| اسکن | نتایج |
+|:---:|:---:|
+| ![اسکن](image/android/scan_fa.png) | ![نتایج](image/android/results_fa.png) |
+
 ---
 
 ## 🎬 Video Tutorial
@@ -362,6 +378,20 @@ Watch the full installation and usage tutorial on YouTube:
 > در مک اگر برنامه باز نشد، روی آن راست‌کلیک کرده و *Open* را بزنید، یا دستور `xattr -dr com.apple.quarantine CDN-IP-Scanner.app` را اجرا کنید.
 
 </div>
+
+---
+
+## 📱 اپ اندروید
+
+نسخه اندروید همان اسکنر را روی گوشی اجرا می‌کند: رنج‌ها، کانفیگ V2Ray با جایگزینی IP، لینک ساب‌اسکریپشن و QR، خروجی Clash / sing-box، تست سرعت، علاقه‌مندی‌ها با پایش پس‌زمینه و هشدار تلگرام، تاریخچه، تست مجدد و خروجی TXT/JSON/CSV. فایل APK در صفحه Releases است (اندروید ۸ به بالا).
+
+<p align="center">
+  <img src="image/android/demo.gif" alt="دمو اپ اندروید" width="260">
+</p>
+
+| اسکن | نتایج | علاقه‌مندی‌ها |
+|:---:|:---:|:---:|
+| ![اسکن](image/android/scan_fa.png) | ![نتایج](image/android/results_fa.png) | ![علاقه‌مندی‌ها](image/android/favorites.png) |
 
 ---
 

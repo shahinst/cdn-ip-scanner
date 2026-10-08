@@ -38,7 +38,11 @@ object ScanEngine {
     var parsedConfig: ParsedConfig? = null; private set
     var ports: List<Int> = listOf(443); private set
 
-    fun init(application: Application) { app = application }
+    fun init(application: Application) {
+        app = application
+        // Show the last finished scan again after the process was restarted.
+        Store.sessions.value.firstOrNull()?.let { if (results.value.isEmpty()) loadSession(it) }
+    }
 
     fun log(level: String, message: String) {
         if (level == "DEBUG" && !Prefs.debugLog) return

@@ -12,6 +12,7 @@ Scanning mechanism based on proven multi-attempt /cdn-cgi/trace verification:
 """
 
 import os
+import re
 import time
 import random
 import socket
@@ -64,7 +65,9 @@ def extract_colo(headers, body=''):
         return ray.rsplit('-', 1)[1].strip().upper()[:10]
     served_by = (headers.get('x-served-by') or '').split(',')[-1].strip()
     if '-' in served_by:
-        return served_by.rsplit('-', 1)[1].strip().upper()[:10]
+        # 'cache-fra19125-FRA' -> 'FRA'; some PoPs omit the suffix: 'cache-sof1510038' -> 'SOF'
+        code = served_by.rsplit('-', 1)[1].strip().upper()[:10]
+        return re.sub(r'\d+$', '', code)
     return ''
 
 

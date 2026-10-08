@@ -22,6 +22,7 @@ def test_extract_colo():
     assert extract_colo({}, 'fl=1\ncolo=ams\n') == 'AMS'
     assert extract_colo({'cf-ray': '8abc123-IST'}) == 'IST'
     assert extract_colo({'x-served-by': 'cache-fra19125-FRA'}) == 'FRA'
+    assert extract_colo({'x-served-by': 'cache-sof1510038'}) == 'SOF'
     assert extract_colo({'server': 'nginx'}) == ''
 
 

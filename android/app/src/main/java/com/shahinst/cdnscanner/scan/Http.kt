@@ -47,7 +47,8 @@ object Http {
         val ray = headers["cf-ray"] ?: ""
         if (ray.contains('-')) return ray.substringAfterLast('-').trim().uppercase().take(10)
         val served = (headers["x-served-by"] ?: "").split(',').last().trim()
-        if (served.contains('-')) return served.substringAfterLast('-').trim().uppercase().take(10)
+        // "cache-fra19125-FRA" -> "FRA"; some PoPs omit the suffix: "cache-sof1510038" -> "SOF"
+        if (served.contains('-')) return served.substringAfterLast('-').trim().uppercase().take(10).trimEnd { it.isDigit() }
         return ""
     }
 

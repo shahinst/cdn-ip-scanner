@@ -51,4 +51,11 @@ class ScanLogicTest {
         assertEquals("Frankfurt, DE", Colo.name("fra"))
         assertEquals("XYZ", Colo.label("XYZ"))
     }
+
+    @Test
+    fun fastlyColoDropsCacheNodeDigits() {
+        assertEquals("FRA", Http.extractColo(mapOf("x-served-by" to "cache-fra19125-FRA")))
+        assertEquals("SOF", Http.extractColo(mapOf("x-served-by" to "cache-sof1510038")))
+        assertEquals("IST", Http.extractColo(mapOf("cf-ray" to "8abc123-IST")))
+    }
 }
