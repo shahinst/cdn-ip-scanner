@@ -705,3 +705,6 @@ tr td:nth-child(2):hover { text-decoration: underline; color: var(--accent); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* IPs that stopped answering during a re-test */
+tr.row-dead .ping-cell { color: var(--error); font-weight: 600; }

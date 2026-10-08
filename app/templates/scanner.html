@@ -134,6 +134,8 @@
         <button class="btn" id="btnFavorites" data-t="favorites_btn">⭐ Favorites</button>
         <button class="btn" id="btnAnalyze" data-t="analyze_btn">📊 Analyze</button>
         <button class="btn" id="btnReset" data-t="reset_data_btn">🔄 Reset data</button>
+        <button class="btn" id="btnRetest" data-t="retest_btn">🔁 Re-test</button>
+        <button class="btn" id="btnCopyBest" data-t="copy_best_btn">📋 Copy best IPs</button>
         <button class="btn" id="btnSave" data-t="save_btn">💾 Save</button>
         <button class="btn" id="btnStop" disabled data-t="stop_btn">⏹️ Stop</button>
         <button class="btn btn-primary" id="btnStart" data-t="start_btn">🚀 Start Scan</button>
@@ -326,6 +328,10 @@
                     <label class="setting-field"><span data-t="settings_tg_proxy">Proxy for Telegram (optional)</span>
                         <input type="text" id="settingTgProxy" class="input" dir="ltr" placeholder="socks5h://127.0.0.1:10808" />
                     </label>
+                    <label class="checkbox-row" style="margin-top:0.6rem">
+                        <input type="checkbox" id="settingNotifyScan" />
+                        <span data-t="settings_notify_scan">Send the best IPs to Telegram when a scan finishes</span>
+                    </label>
                     <button type="button" class="btn btn-sm" id="btnTgTest" data-t="tg_test_btn" style="margin-top:0.6rem">Send test message</button>
                 </div>
                 <div class="setting-group">
@@ -446,6 +452,10 @@
                     <button type="button" class="btn btn-export" data-export="txt" id="btnExportText">
                         <span class="export-icon">📝</span>
                         <span data-t="export_text">Text (IPs only)</span>
+                    </button>
+                    <button type="button" class="btn btn-export" data-export="csv" id="btnExportCsv">
+                        <span class="export-icon">🧾</span>
+                        <span data-t="export_csv">CSV</span>
                     </button>
                 </div>
             </div>

@@ -477,6 +477,8 @@ class SHScanner:
     @staticmethod
     def calc_score(result):
         """Calculate score based on ping, open ports and (if measured) download speed."""
+        if result.get('alive') is False:
+            return 0.0  # a re-test found the IP dead
         score = 0.0
         ping_val = result.get('ping')
         if ping_val is not None:

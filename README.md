@@ -53,6 +53,7 @@ The scanner uses a proven **5-attempt verification method** with `/cdn-cgi/trace
 | **Download Speed Test** | Optional real download test through the best IPs; speed counts in the score |
 | **Subscription & QR** | V2Ray scans: one-click subscription link for v2rayN / v2rayNG / Hiddify, "copy all configs", and a QR code per IP for your phone |
 | **Desktop App** | Native window on Windows and macOS, browser mode on Linux — no Python needed |
+| **Android App** | Native Android app (Kotlin/Compose) with the same scanner: ranges, V2Ray configs, speed test, favorites monitoring, Telegram, exports, QR, Clash/sing-box — the APK is on the Releases page |
 | **Xray Real Test** | V2Ray scans: test the best IPs through Xray-core with your own config — only IPs that really carry traffic pass |
 | **Favorites & Monitoring** | Save IPs with ☆, re-check them automatically (5 min – 3 h), see 24h uptime, and get a Telegram message when one stops working |
 | **IPv4 + IPv6** | Scan IPv4 and IPv6 ranges (Cloudflare IPv6 ranges included) |
@@ -62,9 +63,13 @@ The scanner uses a proven **5-attempt verification method** with `/cdn-cgi/trace
 | **Resume Scans** | Stopped a scan or closed the app mid-scan? Continue where it left off with one click |
 | **Diagnostics** | One-click report (version, system, settings without secrets, logs) to attach to bug reports |
 | **Clash & sing-box Export** | Download the working IPs as a ready Clash/Mihomo or sing-box config with automatic fastest-IP selection |
+| **Re-test Results** | Re-check every IP of a finished scan with one click: dead IPs are marked and drop to score 0, pings and data centers are refreshed |
+| **Copy Best IPs** | One click copies the 10 best working IPs (by score, respecting your filters) to the clipboard |
+| **Data Center Names** | Colo codes are shown with their city (FRA → Frankfurt, DE) in the table, the filter and the exports |
+| **Scan Summary to Telegram** | Optionally receive the best IPs of every finished scan in Telegram |
 | **Multi-Language** | Full support for English, فارسی (Persian), 中文 (Chinese), Русский (Russian) |
 | **Dark/Light Theme** | Beautiful modern UI with dark mode support |
-| **Export Results** | Save results as JSON, Excel (.xlsx), or Text (IPs only) |
+| **Export Results** | Save results as JSON, Excel (.xlsx), CSV, or Text (IPs only) |
 | **Ping & Port Filtering** | Filter results by ping range and specific open ports |
 | **Auto-Update** | Check for updates and install directly from the app |
 | **Scan Logging** | Real-time scan log with DEBUG mode for troubleshooting |
@@ -109,6 +114,7 @@ You can download pre-built versions for all platforms from the **Releases** page
 | **macOS (Apple Silicon)** | `CDN-IP-Scanner-<version>-macos-arm64.zip` | M1/M2/M3/M4 Macs |
 | **macOS (Intel)** | `CDN-IP-Scanner-<version>-macos-x64.zip` | Intel Macs |
 | **Linux (x64 / ARM64)** | `CDN-IP-Scanner-<version>-linux-x64.tar.gz` / `linux-arm64` | Extract and run `./CDN-IP-Scanner/CDN-IP-Scanner` (opens your browser) |
+| **Android (8.0+)** | `CDN-IP-Scanner-<version>-android.apk` | Install the APK (allow "unknown sources"); scans run directly on the phone, including on mobile data |
 | **Source** | `Source code (zip/tar.gz)` | Main source code for developers |
 
 Every release includes `SHA256SUMS.txt` to verify the downloads.
@@ -228,6 +234,27 @@ pip install pytest
 python -m pytest
 ```
 
+### Android App from Source
+
+The Android app lives in [`android/`](android/) (Kotlin, Jetpack Compose, min Android 8.0).
+It needs JDK 17 and the Android SDK (`ANDROID_HOME`); Android Studio installs both.
+
+```bash
+cd android
+./gradlew assembleDebug        # -> app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease      # signed with your key when ANDROID_KEYSTORE_* env vars are set
+```
+
+Release APKs on GitHub are built by `release.yml`; set the repository secrets
+`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`
+to sign them with your own key (otherwise a debug key is used).
+
+What the app does: same scanner as the web version (TCP pre-check, 5× `/cdn-cgi/trace` verification,
+scoring), range sources (Cloudflare, Fastly, IPv6, your own list), V2Ray configs with IP replacement,
+subscription link, QR codes, Clash / sing-box export, download speed test, favorites with background
+monitoring and Telegram alerts, scan history, re-test, TXT/JSON/CSV share, and the four UI languages.
+Scans run in a foreground service so they keep going while the screen is off.
+
 ---
 
 ## 🎬 Video Tutorial
@@ -263,6 +290,7 @@ Watch the full installation and usage tutorial on YouTube:
 | **تست سرعت دانلود** | تست واقعی سرعت دانلود بهترین آی‌پی‌ها (اختیاری) و تأثیر آن در امتیاز |
 | **ساب‌اسکریپشن و QR** | در اسکن V2Ray: لینک ساب‌اسکریپشن برای v2rayN / v2rayNG / Hiddify، کپی همه کانفیگ‌ها و QR کد هر آی‌پی برای گوشی |
 | **برنامه دسکتاپ** | پنجره مستقل در ویندوز و مک، حالت مرورگر در لینوکس — بدون نیاز به پایتون |
+| **اپ اندروید** | اپ بومی اندروید (Kotlin/Compose) با همان اسکنر: رنج‌ها، کانفیگ V2Ray، تست سرعت، پایش علاقه‌مندی‌ها، تلگرام، خروجی‌ها، QR و Clash/sing-box — فایل APK در صفحه Releases |
 | **تست واقعی با Xray** | در اسکن V2Ray، بهترین آی‌پی‌ها با کانفیگ خود شما از داخل Xray-core تست می‌شوند — فقط آی‌پی‌هایی که واقعاً کار می‌کنند |
 | **علاقه‌مندی‌ها و پایش** | ذخیره آی‌پی با ☆، بررسی خودکار دوره‌ای (۵ دقیقه تا ۳ ساعت)، نمایش پایداری ۲۴ ساعته و پیام تلگرام وقتی آی‌پی از کار بیفتد |
 | **IPv4 و IPv6** | اسکن رنج‌های IPv4 و IPv6 (شامل رنج‌های IPv6 کلودفلر) |
@@ -272,9 +300,13 @@ Watch the full installation and usage tutorial on YouTube:
 | **ادامه اسکن** | اسکن را متوقف کردید یا برنامه وسط اسکن بسته شد؟ با یک کلیک از همان‌جا ادامه دهید |
 | **گزارش عیب‌یابی** | گزارش یک‌کلیکی (نسخه، سیستم، تنظیمات بدون اطلاعات محرمانه، لاگ) برای گزارش باگ |
 | **خروجی Clash و sing-box** | دانلود آی‌پی‌های سالم به صورت کانفیگ آماده Clash/Mihomo یا sing-box با انتخاب خودکار سریع‌ترین آی‌پی |
+| **تست مجدد نتایج** | با یک کلیک همه آی‌پی‌های یک اسکن تمام‌شده دوباره بررسی می‌شوند: آی‌پی‌های خراب علامت می‌خورند و امتیازشان صفر می‌شود، پینگ و دیتاسنتر به‌روز می‌شود |
+| **کپی بهترین آی‌پی‌ها** | با یک کلیک ۱۰ آی‌پی سالم برتر (بر اساس امتیاز و با رعایت فیلترها) کپی می‌شود |
+| **نام دیتاسنترها** | کد هر دیتاسنتر با نام شهر (FRA ← Frankfurt, DE) در جدول، فیلتر و خروجی‌ها نمایش داده می‌شود |
+| **خلاصه اسکن در تلگرام** | در صورت تمایل، بهترین آی‌پی‌های هر اسکن تمام‌شده به تلگرام ارسال می‌شود |
 | **چندزبانه** | پشتیبانی کامل از فارسی، English، 中文، Русский |
 | **تم تاریک/روشن** | رابط کاربری مدرن و زیبا با پشتیبانی حالت تاریک |
-| **خروجی نتایج** | ذخیره نتایج به صورت JSON، اکسل (xlsx.) یا متن (فقط آی‌پی) |
+| **خروجی نتایج** | ذخیره نتایج به صورت JSON، اکسل (xlsx.)، CSV یا متن (فقط آی‌پی) |
 | **فیلتر پینگ و پورت** | فیلتر نتایج بر اساس محدوده پینگ و پورت‌های باز خاص |
 | **بروزرسانی خودکار** | بررسی و نصب بروزرسانی مستقیم از داخل برنامه |
 | **لاگ اسکن** | لاگ لحظه‌ای اسکن با حالت DEBUG برای عیب‌یابی |
@@ -321,6 +353,7 @@ Watch the full installation and usage tutorial on YouTube:
 | **مک (Apple Silicon)** | `CDN-IP-Scanner-<version>-macos-arm64.zip` | مک‌های M1/M2/M3/M4 |
 | **مک (اینتل)** | `CDN-IP-Scanner-<version>-macos-x64.zip` | مک‌های اینتلی |
 | **لینوکس (x64 / ARM64)** | `CDN-IP-Scanner-<version>-linux-x64.tar.gz` / `linux-arm64` | استخراج و اجرای `./CDN-IP-Scanner/CDN-IP-Scanner` (مرورگر باز می‌شود) |
+| **اندروید (۸ به بالا)** | `CDN-IP-Scanner-<version>-android.apk` | فایل APK را نصب کنید (اجازه «منابع ناشناس»)؛ اسکن مستقیماً روی گوشی و حتی با اینترنت موبایل انجام می‌شود |
 | **سورس** | `Source code (zip/tar.gz)` | کد منبع اصلی برای توسعه‌دهندگان |
 
 فایل `SHA256SUMS.txt` در هر نسخه برای بررسی صحت دانلود قرار دارد.
@@ -403,7 +436,8 @@ bash /opt/cdn-ip-scanner/uninstall.sh
 | **WebSocket** | Socket.IO (real-time results) |
 | **Web Server** | Nginx (reverse proxy) |
 | **Scanning** | ThreadPoolExecutor (gevent greenlets), /cdn-cgi/trace verification |
-| **Export** | openpyxl (Excel), JSON, Plain Text |
+| **Export** | openpyxl (Excel), JSON, CSV, Plain Text |
+| **Android** | Kotlin, Jetpack Compose (Material 3), Coroutines, WorkManager, ZXing |
 
 ---
 
@@ -416,21 +450,28 @@ cdn-ip-scanner/
 ├── packaging/              # PyInstaller build + smoke test scripts
 ├── .github/workflows/      # CI (tests) and multi-platform build & release
 ├── install.sh              # Smart Linux installer
+├── android/                # Android app (Kotlin / Jetpack Compose, Gradle project)
 ├── requirements.txt        # Python dependencies
 ├── version                 # Version file
 └── app/
     ├── __init__.py         # Flask app factory
     ├── config.py           # Configuration
     ├── models.py           # Database models
+    ├── monitor.py          # Favorites monitoring + Telegram
     ├── routes/
     │   ├── api.py          # REST API + scan logic
+    │   ├── favorites.py    # Favorites API
+    │   ├── diagnostics.py  # Diagnostics report
     │   └── main.py         # Page routes
     ├── scanner/
     │   ├── core.py         # Scan engine (5-attempt verification)
+    │   ├── colo.py         # Data-center code -> city names
+    │   ├── client_export.py # Clash / sing-box config export
     │   ├── range_fetcher.py # CDN range fetcher (multi-source)
     │   ├── operators.py    # ISP operator definitions & fetch
     │   ├── speedtest.py    # Download speed test through a CDN IP
-    │   └── v2ray.py        # V2Ray config parser & scanner
+    │   ├── v2ray.py        # V2Ray config parser & scanner
+    │   └── xray.py         # Xray-core installer + real config test
     ├── static/
     │   ├── css/style.css   # Modern responsive design
     │   ├── js/app.js       # Frontend application

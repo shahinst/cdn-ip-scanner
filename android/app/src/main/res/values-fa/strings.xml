@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_scan">اسکن</string>
+    <string name="tab_results">نتایج</string>
+    <string name="tab_favorites">علاقه‌مندی‌ها</string>
+    <string name="tab_history">تاریخچه</string>
+    <string name="tab_settings">تنظیمات</string>
+
+    <string name="method">روش اسکن</string>
+    <string name="method_cloud">CDN (کلودفلر / فستلی)</string>
+    <string name="method_v2ray">کانفیگ V2Ray</string>
+    <string name="v2ray_config">کانفیگ V2Ray (vless:// vmess:// trojan://)</string>
+    <string name="v2ray_hint">هر IP پیدا شده با این کانفیگ تست می‌شود و به صورت لینک آماده خروجی داده می‌شود.</string>
+    <string name="v2ray_invalid">کانفیگ نامعتبر: یک لینک vless:// یا vmess:// یا trojan:// وارد کنید</string>
+    <string name="v2ray_parsed">%1$s · %2$s:%3$d</string>
+
+    <string name="ranges">رنج‌های IP</string>
+    <string name="ranges_hint">هر خط یک CIDR یا IP. خالی بگذارید تا از منبع انتخاب‌شده استفاده شود.</string>
+    <string name="range_source">منبع</string>
+    <string name="src_builtin">داخلی (کلودفلر + فستلی)</string>
+    <string name="src_cloudflare">کلودفلر (لیست رسمی)</string>
+    <string name="src_cloudflare_v6">کلودفلر IPv6</string>
+    <string name="src_fastly">فستلی (لیست رسمی)</string>
+    <string name="src_all">همه منابع</string>
+    <string name="fetch_ranges">دریافت رنج‌ها</string>
+    <string name="ranges_count">%d رنج بارگذاری شد</string>
+    <string name="fetch_failed">دریافت رنج‌ها ناموفق بود: %s</string>
+    <string name="no_ranges">رنج IP معتبری وجود ندارد</string>
+
+    <string name="profile">پروفایل</string>
+    <string name="profile_custom">سفارشی</string>
+    <string name="profile_quick">سریع</string>
+    <string name="profile_balanced">متعادل</string>
+    <string name="profile_thorough">کامل</string>
+    <string name="profile_mobile">اینترنت موبایل</string>
+    <string name="mode">حالت سرعت</string>
+    <string name="mode_hyper">هایپر (سبک)</string>
+    <string name="mode_turbo">توربو</string>
+    <string name="mode_ultra">اولترا</string>
+    <string name="mode_deep">عمیق (حداکثر)</string>
+    <string name="target_count">تعداد IP هدف</string>
+    <string name="ping_min">حداقل پینگ (ms)</string>
+    <string name="ping_max">حداکثر پینگ (ms)</string>
+    <string name="ports">پورت‌ها (با کاما جدا کنید)</string>
+    <string name="operator">برچسب اپراتور</string>
+    <string name="operator_none">هیچ‌کدام</string>
+
+    <string name="start_scan">شروع اسکن</string>
+    <string name="stop_scan">توقف</string>
+    <string name="scan_running">یک اسکن در حال اجراست</string>
+    <string name="status_idle">آماده</string>
+    <string name="status_scanning">در حال اسکن… %1$d٪ · %2$.0f IP/s</string>
+    <string name="status_config_test">تست IPها با کانفیگ شما %1$d/%2$d</string>
+    <string name="status_speed_test">تست سرعت %1$d/%2$d</string>
+    <string name="status_retest">تست مجدد %1$d/%2$d</string>
+    <string name="status_done">تمام شد: %1$d IP در %2$d ثانیه پیدا شد</string>
+    <string name="status_stopped">متوقف شد</string>
+    <string name="status_error">خطا: %s</string>
+    <string name="found">پیدا شده</string>
+    <string name="scanned">اسکن شده</string>
+    <string name="elapsed">زمان</string>
+    <string name="chart_speed">سرعت اسکن (IP/s)</string>
+    <string name="log">لاگ</string>
+
+    <string name="results_empty">هنوز نتیجه‌ای نیست. یک اسکن شروع کنید.</string>
+    <string name="filter_hint">فیلتر بر اساس IP یا دیتاسنتر</string>
+    <string name="all_colos">همه دیتاسنترها</string>
+    <string name="sort_score">امتیاز</string>
+    <string name="sort_ping">پینگ</string>
+    <string name="sort_speed">سرعت</string>
+    <string name="hide_failed">پنهان کردن ناموفق‌ها</string>
+    <string name="ip_copied">%s کپی شد</string>
+    <string name="added_favorite">به علاقه‌مندی‌ها اضافه شد</string>
+    <string name="removed_favorite">از علاقه‌مندی‌ها حذف شد</string>
+    <string name="ping_ms">%d ms</string>
+    <string name="score_fmt">امتیاز %d/100</string>
+    <string name="speed_fmt">%.0f KB/s</string>
+    <string name="real_ok">کانفیگ OK · %d ms</string>
+    <string name="real_failed">کانفیگ ناموفق</string>
+    <string name="dead">در دسترس نیست</string>
+
+    <string name="export">خروجی</string>
+    <string name="export_txt">متن (فقط IPها)</string>
+    <string name="export_json">JSON</string>
+    <string name="export_csv">CSV</string>
+    <string name="copy_best">کپی بهترین IPها</string>
+    <string name="copied_best">%d IP کپی شد</string>
+    <string name="subscription">کپی سابسکریپشن</string>
+    <string name="sub_copied">سابسکریپشن کپی شد (base64، در v2rayNG / Hiddify وارد کنید)</string>
+    <string name="copy_all_configs">کپی همه کانفیگ‌ها</string>
+    <string name="configs_copied">%d کانفیگ کپی شد</string>
+    <string name="export_clash">Clash / Mihomo</string>
+    <string name="export_singbox">sing-box</string>
+    <string name="export_error">خروجی ناموفق بود: %s</string>
+    <string name="qr">QR</string>
+    <string name="copy_config">کپی کانفیگ</string>
+    <string name="config_copied">کانفیگ کپی شد</string>
+    <string name="retest">تست مجدد</string>
+    <string name="clear_results">پاک کردن</string>
+
+    <string name="fav_empty">علاقه‌مندی‌ای ندارید. روی ستاره یک نتیجه بزنید.</string>
+    <string name="fav_check_now">بررسی الان</string>
+    <string name="fav_checked">بررسی شد: %1$d قطع، %2$d برگشت</string>
+    <string name="fav_uptime">آپتایم ۲۴ ساعت</string>
+    <string name="fav_last_check">آخرین بررسی</string>
+    <string name="fav_never">هرگز</string>
+    <string name="fav_up">فعال</string>
+    <string name="fav_down">قطع</string>
+    <string name="fav_unknown">؟</string>
+    <string name="fav_went_down">❌ %s از کار افتاد</string>
+    <string name="fav_came_back">✅ %s دوباره کار می‌کند</string>
+    <string name="delete">حذف</string>
+
+    <string name="history_empty">هنوز اسکنی انجام نشده.</string>
+    <string name="history_load">بارگذاری</string>
+    <string name="history_delete_all">حذف تاریخچه</string>
+    <string name="history_line">%1$d پیدا شده / %2$d اسکن شده · %3$.0f ثانیه</string>
+
+    <string name="settings_general">عمومی</string>
+    <string name="theme">پوسته</string>
+    <string name="theme_system">سیستم</string>
+    <string name="theme_light">روشن</string>
+    <string name="theme_dark">تیره</string>
+    <string name="language">زبان</string>
+    <string name="lang_system">سیستم</string>
+    <string name="debug_log">نمایش لاگ دیباگ هر IP</string>
+
+    <string name="settings_speed">تست سرعت دانلود</string>
+    <string name="speed_enable">بعد از اسکن، سرعت دانلود بهترین IPها تست شود</string>
+    <string name="speed_size">حجم تست (KB)</string>
+    <string name="speed_count">تعداد IP برای تست</string>
+    <string name="speed_url">آدرس تست ({bytes} = حجم)</string>
+    <string name="settings_config_test">تست واقعی با کانفیگ شما (اسکن V2Ray)</string>
+    <string name="config_test_enable">بهترین IPها با SNI و Host کانفیگ شما تست شوند</string>
+    <string name="config_test_count">تعداد IP برای تست</string>
+
+    <string name="settings_monitor">مانیتورینگ و تلگرام</string>
+    <string name="monitor_interval">بررسی مجدد علاقه‌مندی‌ها هر (دقیقه)</string>
+    <string name="monitor_off">خاموش</string>
+    <string name="monitor_note">اندروید بررسی‌های پس‌زمینه را حداکثر هر ۱۵ دقیقه اجرا می‌کند.</string>
+    <string name="tg_token">توکن ربات تلگرام</string>
+    <string name="tg_chat">Chat ID</string>
+    <string name="tg_proxy">پروکسی برای تلگرام (اختیاری، socks5://host:port)</string>
+    <string name="tg_test">ارسال پیام تست</string>
+    <string name="tg_sent">پیام تلگرام ارسال شد</string>
+    <string name="tg_failed">تلگرام ناموفق: %s</string>
+    <string name="notify_scan_complete">بعد از پایان اسکن، بهترین IPها به تلگرام ارسال شود</string>
+
+    <string name="settings_about">درباره</string>
+    <string name="version">نسخه %s</string>
+    <string name="github">گیت‌هاب</string>
+    <string name="check_update">بررسی بروزرسانی</string>
+    <string name="update_available">نسخه %s در دسترس است</string>
+    <string name="up_to_date">آخرین نسخه را دارید</string>
+    <string name="update_check_failed">بررسی بروزرسانی ناموفق بود</string>
+    <string name="diagnostics">اشتراک‌گذاری گزارش عیب‌یابی</string>
+    <string name="save">ذخیره</string>
+    <string name="saved">ذخیره شد</string>
+
+    <string name="notif_channel_scan">پیشرفت اسکن</string>
+    <string name="notif_channel_monitor">هشدار IPهای علاقه‌مندی</string>
+    <string name="notif_scan_title">در حال اسکن IPهای CDN</string>
+    <string name="notif_scan_text">%1$d٪ · %2$d پیدا شده</string>
+    <string name="notif_done_title">اسکن تمام شد</string>
+    <string name="notif_monitor_title">وضعیت IP علاقه‌مندی تغییر کرد</string>
+</resources>

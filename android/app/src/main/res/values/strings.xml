@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CDN IP Scanner</string>
+    <string name="tab_scan">Scan</string>
+    <string name="tab_results">Results</string>
+    <string name="tab_favorites">Favorites</string>
+    <string name="tab_history">History</string>
+    <string name="tab_settings">Settings</string>
+
+    <string name="method">Scan method</string>
+    <string name="method_cloud">CDN (Cloudflare / Fastly)</string>
+    <string name="method_v2ray">V2Ray config</string>
+    <string name="v2ray_config">V2Ray config (vless:// vmess:// trojan://)</string>
+    <string name="v2ray_hint">Every found IP is tested with this config and exported as a ready-to-use link.</string>
+    <string name="v2ray_invalid">Invalid config: paste a vless://, vmess:// or trojan:// link</string>
+    <string name="v2ray_parsed">%1$s · %2$s:%3$d</string>
+
+    <string name="ranges">IP ranges</string>
+    <string name="ranges_hint">One CIDR or IP per line. Leave empty to use the selected source.</string>
+    <string name="range_source">Source</string>
+    <string name="src_builtin">Built-in (Cloudflare + Fastly)</string>
+    <string name="src_cloudflare">Cloudflare (official list)</string>
+    <string name="src_cloudflare_v6">Cloudflare IPv6</string>
+    <string name="src_fastly">Fastly (official list)</string>
+    <string name="src_all">All sources</string>
+    <string name="fetch_ranges">Fetch ranges</string>
+    <string name="ranges_count">%d ranges loaded</string>
+    <string name="fetch_failed">Could not fetch ranges: %s</string>
+    <string name="no_ranges">No valid IP ranges</string>
+
+    <string name="profile">Profile</string>
+    <string name="profile_custom">Custom</string>
+    <string name="profile_quick">Quick</string>
+    <string name="profile_balanced">Balanced</string>
+    <string name="profile_thorough">Thorough</string>
+    <string name="profile_mobile">Mobile data</string>
+    <string name="mode">Speed mode</string>
+    <string name="mode_hyper">Hyper (light)</string>
+    <string name="mode_turbo">Turbo</string>
+    <string name="mode_ultra">Ultra</string>
+    <string name="mode_deep">Deep (max)</string>
+    <string name="target_count">Target IP count</string>
+    <string name="ping_min">Min ping (ms)</string>
+    <string name="ping_max">Max ping (ms)</string>
+    <string name="ports">Ports (comma separated)</string>
+    <string name="operator">Operator label</string>
+    <string name="operator_none">None</string>
+
+    <string name="start_scan">Start scan</string>
+    <string name="stop_scan">Stop</string>
+    <string name="scan_running">A scan is already running</string>
+    <string name="status_idle">Ready</string>
+    <string name="status_scanning">Scanning… %1$d%% · %2$.0f IP/s</string>
+    <string name="status_config_test">Testing IPs through your config %1$d/%2$d</string>
+    <string name="status_speed_test">Speed test %1$d/%2$d</string>
+    <string name="status_retest">Re-testing %1$d/%2$d</string>
+    <string name="status_done">Done: %1$d IPs found in %2$d s</string>
+    <string name="status_stopped">Stopped</string>
+    <string name="status_error">Error: %s</string>
+    <string name="found">Found</string>
+    <string name="scanned">Scanned</string>
+    <string name="elapsed">Elapsed</string>
+    <string name="chart_speed">Scan speed (IP/s)</string>
+    <string name="log">Log</string>
+
+    <string name="results_empty">No results yet. Start a scan.</string>
+    <string name="filter_hint">Filter by IP or data center</string>
+    <string name="all_colos">All data centers</string>
+    <string name="sort_score">Score</string>
+    <string name="sort_ping">Ping</string>
+    <string name="sort_speed">Speed</string>
+    <string name="hide_failed">Hide failed</string>
+    <string name="ip_copied">Copied %s</string>
+    <string name="added_favorite">Added to favorites</string>
+    <string name="removed_favorite">Removed from favorites</string>
+    <string name="ping_ms">%d ms</string>
+    <string name="score_fmt">Score %d/100</string>
+    <string name="speed_fmt">%.0f KB/s</string>
+    <string name="real_ok">Config OK · %d ms</string>
+    <string name="real_failed">Config failed</string>
+    <string name="dead">Not reachable</string>
+
+    <string name="export">Export</string>
+    <string name="export_txt">Text (IPs only)</string>
+    <string name="export_json">JSON</string>
+    <string name="export_csv">CSV</string>
+    <string name="copy_best">Copy best IPs</string>
+    <string name="copied_best">Copied %d IPs</string>
+    <string name="subscription">Copy subscription</string>
+    <string name="sub_copied">Subscription copied (base64, paste into v2rayNG / Hiddify)</string>
+    <string name="copy_all_configs">Copy all configs</string>
+    <string name="configs_copied">%d configs copied</string>
+    <string name="export_clash">Clash / Mihomo</string>
+    <string name="export_singbox">sing-box</string>
+    <string name="export_error">Export failed: %s</string>
+    <string name="qr">QR</string>
+    <string name="copy_config">Copy config</string>
+    <string name="config_copied">Config copied</string>
+    <string name="retest">Re-test</string>
+    <string name="clear_results">Clear</string>
+
+    <string name="fav_empty">No favorites. Tap the star on a result.</string>
+    <string name="fav_check_now">Check now</string>
+    <string name="fav_checked">Checked: %1$d down, %2$d back</string>
+    <string name="fav_uptime">Uptime 24h</string>
+    <string name="fav_last_check">Last check</string>
+    <string name="fav_never">never</string>
+    <string name="fav_up">UP</string>
+    <string name="fav_down">DOWN</string>
+    <string name="fav_unknown">?</string>
+    <string name="fav_went_down">❌ %s stopped working</string>
+    <string name="fav_came_back">✅ %s is working again</string>
+    <string name="delete">Delete</string>
+
+    <string name="history_empty">No scans yet.</string>
+    <string name="history_load">Load</string>
+    <string name="history_delete_all">Delete history</string>
+    <string name="history_line">%1$d found / %2$d scanned · %3$.0f s</string>
+
+    <string name="settings_general">General</string>
+    <string name="theme">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="language">Language</string>
+    <string name="lang_system">System</string>
+    <string name="debug_log">Show per-IP debug log</string>
+
+    <string name="settings_speed">Download speed test</string>
+    <string name="speed_enable">After the scan, test the download speed of the best IPs</string>
+    <string name="speed_size">Test size (KB)</string>
+    <string name="speed_count">Number of IPs to test</string>
+    <string name="speed_url">Test URL ({bytes} = size)</string>
+    <string name="settings_config_test">Real test through your config (V2Ray scan)</string>
+    <string name="config_test_enable">Test the best IPs with the TLS SNI and Host of your config</string>
+    <string name="config_test_count">Number of IPs to test</string>
+
+    <string name="settings_monitor">Monitoring &amp; Telegram</string>
+    <string name="monitor_interval">Re-check favorites every (minutes)</string>
+    <string name="monitor_off">Off</string>
+    <string name="monitor_note">Android runs background checks at most every 15 minutes.</string>
+    <string name="tg_token">Telegram bot token</string>
+    <string name="tg_chat">Chat ID</string>
+    <string name="tg_proxy">Proxy for Telegram (optional, socks5://host:port)</string>
+    <string name="tg_test">Send test message</string>
+    <string name="tg_sent">Telegram message sent</string>
+    <string name="tg_failed">Telegram failed: %s</string>
+    <string name="notify_scan_complete">Send the best IPs to Telegram when a scan finishes</string>
+
+    <string name="settings_about">About</string>
+    <string name="version">Version %s</string>
+    <string name="github">GitHub</string>
+    <string name="check_update">Check for update</string>
+    <string name="update_available">Version %s is available</string>
+    <string name="up_to_date">You have the latest version</string>
+    <string name="update_check_failed">Could not check for updates</string>
+    <string name="diagnostics">Share diagnostic report</string>
+    <string name="save">Save</string>
+    <string name="saved">Saved</string>
+
+    <string name="notif_channel_scan">Scan progress</string>
+    <string name="notif_channel_monitor">Favorite IP alerts</string>
+    <string name="notif_scan_title">Scanning CDN IPs</string>
+    <string name="notif_scan_text">%1$d%% · %2$d found</string>
+    <string name="notif_done_title">Scan finished</string>
+    <string name="notif_monitor_title">Favorite IP status changed</string>
+</resources>

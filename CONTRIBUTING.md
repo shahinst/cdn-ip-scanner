@@ -42,6 +42,7 @@ then set `XRAY_PATH` to the printed path). Without it those tests are skipped.
 | `packaging/` | PyInstaller build (`build.py`) and the smoke test for built apps. |
 | `install.sh` | Linux server installer (nginx, TLS, systemd as an unprivileged user). |
 | `tests/` | pytest suite. `conftest.py` has local fake-CDN HTTP servers. |
+| `android/` | Android app (Kotlin / Jetpack Compose). `cd android && ./gradlew assembleDebug testDebugUnitTest` needs JDK 17 and the Android SDK. |
 
 ## Rules of thumb
 

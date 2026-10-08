@@ -143,3 +143,55 @@ def test_old_database_is_migrated(tmp_path):
     assert {'colo', 'speed'} <= cols
     assert 'v2ray_config' in {row[1] for row in con.execute('PRAGMA table_info(scan_sessions)')}
     con.close()
+
+
+def test_csv_export_and_colo_name(client, http_server, monkeypatch):
+    monkeypatch.setattr(api, '_scan_thread', None)
+    port = http_server({'CF-RAY': '1-FRA'})
+    client.post('/api/scan/start', json={'ranges': ['127.0.0.1'], 'ports': str(port), 'target_count': '1'})
+    _wait_scan()
+    results = client.get('/api/scan/results').get_json()
+    assert results[0]['colo_name'] == 'Frankfurt, DE' and results[0]['alive'] is True
+    r = client.get('/api/export/csv')
+    assert r.status_code == 200 and 'scan_results.csv' in r.headers['Content-Disposition']
+    text = r.data.decode('utf-8-sig')
+    assert text.splitlines()[0].startswith('#,IP,Ping')
+    assert '127.0.0.1' in text and 'FRA (Frankfurt, DE)' in text and text.rstrip().endswith('yes')
+
+
+def test_retest_marks_dead_ips(client, http_server, monkeypatch):
+    monkeypatch.setattr(api, '_scan_thread', None)
+    monkeypatch.setattr(api, '_retest_thread', None)
+    port = http_server({'CF-RAY': '1-AMS'})
+    sid = client.post('/api/scan/start', json={
+        'ranges': ['127.0.0.1'], 'ports': str(port), 'target_count': '1',
+    }).get_json()['session_id']
+    _wait_scan()
+    assert client.post('/api/scan/retest', json={'session_id': 9999}).status_code == 404
+
+    # The IP still answers: it stays alive
+    r = client.post('/api/scan/retest', json={'session_id': sid})
+    assert r.status_code == 200 and r.get_json()['count'] == 1
+    api._retest_thread.join(timeout=30)
+    res = client.get('/api/scan/results').get_json()[0]
+    assert res['alive'] is True and res['score'] > 0
+
+    # The IP stopped answering: alive=false, score 0
+    monkeypatch.setattr(api.SHScanner, 'check', lambda self, ip, ports: None)
+    assert client.post('/api/scan/retest', json={'session_id': sid}).status_code == 200
+    api._retest_thread.join(timeout=30)
+    res = client.get('/api/scan/results').get_json()[0]
+    assert res['alive'] is False and res['score'] == 0
+    assert 'no' in client.get('/api/export/csv').data.decode('utf-8-sig').splitlines()[1].split(',')[-1]
+
+
+def test_scan_summary_is_sent_to_telegram(client, http_server, monkeypatch):
+    monkeypatch.setattr(api, '_scan_thread', None)
+    sent = []
+    from app import monitor
+    monkeypatch.setattr(monitor, 'send_telegram', lambda text, **kw: sent.append(text) or (True, ''))
+    client.post('/api/settings', json={'notify_scan_complete': 'true'})
+    port = http_server({'CF-RAY': '1-IST'})
+    client.post('/api/scan/start', json={'ranges': ['127.0.0.1'], 'ports': str(port), 'target_count': '1'})
+    _wait_scan()
+    assert len(sent) == 1 and '127.0.0.1' in sent[0] and 'IST' in sent[0]

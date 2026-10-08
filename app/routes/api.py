@@ -21,6 +21,7 @@ from app.scanner.operators import (
 from app.scanner.v2ray import V2RayConfigParser, V2RayScanner
 from app.scanner.speedtest import measure_download, DEFAULT_SPEED_TEST_URL
 from app.scanner import xray as xray_mod
+from app.scanner.colo import colo_name, colo_label
 
 api_bp = Blueprint('api', __name__)
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ SETTINGS_DEFAULTS = {
     'profile': 'custom',  # last scan profile chosen in the UI
     'monitor_interval': '0',  # minutes between favorite-IP checks (0 = off)
     'telegram_token': '', 'telegram_chat_id': '', 'telegram_proxy': '',
+    'notify_scan_complete': 'false',  # Telegram message with the best IPs after every scan
 }
 
 
@@ -573,6 +575,7 @@ def _start_scan_locked(data=None, resume=None):
                         'score': round(score, 1),
                         'operator': operator_name,
                         'colo': result.get('colo') or '',
+                        'colo_name': colo_name(result.get('colo')),
                         'session_id': sess_id,
                         'is_v2ray': scan_method == 'v2ray',
                     }, namespace='/')
@@ -664,6 +667,8 @@ def _start_scan_locked(data=None, resume=None):
                     db.session.commit()
 
                 _emit_log('INFO', f'Scan complete: {found}/{total_scanned} IPs found in {elapsed:.1f}s', sess_id)
+                if found and not _user_stop_requested:
+                    _notify_scan_complete(sess_id, scan_method, found_results, total_scanned, elapsed)
                 socketio.emit('scan_complete', {
                     'session_id': sess_id,
                     'total_scanned': total_scanned,
@@ -687,6 +692,114 @@ def _start_scan_locked(data=None, resume=None):
     _scan_thread.start()
 
     return jsonify({'session_id': sess_id, 'status': 'started'})
+
+
+def _notify_scan_complete(sess_id, scan_method, found_results, total_scanned, elapsed):
+    """Optional Telegram summary (best IPs) when a scan finishes."""
+    if AppSetting.get('notify_scan_complete', 'false') != 'true':
+        return
+    best = sorted(found_results, key=lambda r: r.get('score') or 0, reverse=True)[:10]
+    lines = [f'CDN IP Scanner: scan #{sess_id} finished',
+             f'{scan_method}: {len(found_results)} IPs found, {total_scanned} tried, {elapsed:.0f}s', '']
+    for r in best:
+        ping = r.get('ping')
+        colo = f' {r["colo"]}' if r.get('colo') else ''
+        lines.append(f'{r["ip"]}  {ping:.0f} ms{colo}' if ping else f'{r["ip"]}{colo}')
+    from app.monitor import send_telegram
+    ok, err = send_telegram('\n'.join(lines))
+    if ok:
+        _emit_log('INFO', 'Telegram: scan summary sent', sess_id)
+    else:
+        _emit_log('WARN', f'Telegram: could not send scan summary ({err})', sess_id)
+
+
+# ========== Re-test stored results ==========
+
+_retest_thread = None
+
+
+def _retest_running():
+    return _retest_thread is not None and _retest_thread.is_alive()
+
+
+def _retest_one(ip, ports, scanner, v2ray_parsed):
+    """Re-check one stored IP; returns (alive, ping_ms, colo)."""
+    if v2ray_parsed:
+        return V2RayConfigParser.test_ip_with_config(v2ray_parsed, ip)
+    res = scanner.check(ip, ports or [443])
+    if not res:
+        return False, None, ''
+    return True, res.get('ping'), res.get('colo') or ''
+
+
+@api_bp.route('/scan/retest', methods=['POST'])
+def retest_results():
+    """Re-check every IP of a session: dead IPs get alive=false and score 0."""
+    global _retest_thread
+    if _scan_running() or _retest_running():
+        return jsonify({'error': 'A scan or re-test is already running'}), 409
+    data = request.get_json(silent=True) or {}
+    session_id = _to_int(data.get('session_id'), 0, lo=0)
+    sess = db.session.get(ScanSession, session_id) if session_id else None
+    if not sess:
+        return jsonify({'error': 'Session not found'}), 404
+    row_ids = [r.id for r in ScanResult.query.filter_by(scan_session_id=sess.id).all()]
+    if not row_ids:
+        return jsonify({'error': 'No results in this session'}), 404
+    v2ray_parsed = None
+    if sess.scan_method == 'v2ray' and sess.v2ray_config:
+        v2ray_parsed = V2RayConfigParser.parse(sess.v2ray_config)
+    sess_id = sess.id
+    app = current_app._get_current_object()
+
+    def run():
+        from concurrent.futures import ThreadPoolExecutor
+        with app.app_context():
+            scanner = SHScanner()
+            scanner.set_mode(AppSetting.get('mode', 'hyper'))
+            scanner.max_latency_ms = _to_int(AppSetting.get('ping_max', '9999'), 9999, lo=1, hi=60000)
+            rows = ScanResult.query.filter(ScanResult.id.in_(row_ids)).all()
+            _emit_log('INFO', f'Re-test: checking {len(rows)} IPs of scan #{sess_id}', sess_id)
+            alive_count = dead_count = 0
+            with ThreadPoolExecutor(max_workers=16) as pool:
+                jobs = [(row, pool.submit(_retest_one, row.ip, json.loads(row.open_ports or '[]'), scanner, v2ray_parsed))
+                        for row in rows]
+                for row, fut in jobs:
+                    try:
+                        alive, ping, colo = fut.result()
+                    except Exception as e:
+                        logger.warning('Re-test %s failed: %s', row.ip, e)
+                        alive, ping, colo = False, None, ''
+                    row.alive = bool(alive)
+                    if alive:
+                        alive_count += 1
+                        if ping:
+                            row.ping = round(ping, 1)
+                        if colo:
+                            row.colo = colo
+                    else:
+                        dead_count += 1
+                    row.score = SHScanner.calc_score({
+                        'ping': row.ping, 'open_ports': json.loads(row.open_ports or '[]'),
+                        'speed': row.speed, 'real_delay': row.real_delay, 'alive': row.alive})
+                    socketio.emit('scan_result_update', {
+                        'ip': row.ip, 'session_id': sess_id, 'alive': row.alive, 'ping': row.ping,
+                        'colo': row.colo or '', 'colo_name': colo_name(row.colo), 'score': round(row.score, 1),
+                    }, namespace='/')
+                    state = f'OK {row.ping:.0f} ms' if alive and row.ping else ('OK' if alive else 'dead')
+                    _emit_log('INFO', f'Re-test {row.ip}: {state}', sess_id)
+            try:
+                db.session.commit()
+            except Exception as e:
+                logger.warning('Re-test: could not save results: %s', e)
+                db.session.rollback()
+            _emit_log('INFO', f'Re-test complete: {alive_count} alive, {dead_count} dead', sess_id)
+            socketio.emit('retest_complete', {'session_id': sess_id, 'alive': alive_count, 'dead': dead_count},
+                          namespace='/')
+
+    _retest_thread = threading.Thread(target=run, daemon=True)
+    _retest_thread.start()
+    return jsonify({'status': 'started', 'count': len(row_ids)})
 
 
 def _save_result_fields(sess_id, res, **fields):
@@ -870,6 +983,8 @@ def get_logs():
 
 # ========== Export ==========
 
+ALIVE_HEADER = {'en': 'Alive', 'fa': 'سالم', 'zh': '可用', 'ru': 'Работает'}
+
 EXPORT_HEADERS = {
     'fa': ('رتبه', 'آدرس IP', 'Ping', 'پورت\u200cها', 'امتیاز', 'اپراتور', 'دیتاسنتر', 'سرعت (KB/s)', 'تأخیر واقعی (ms)'),
     'en': ('#', 'IP', 'Ping', 'Ports', 'Score', 'Operator', 'Colo', 'Speed (KB/s)', 'Real delay (ms)'),
@@ -896,6 +1011,21 @@ def export_results(fmt):
         lines = [r.ip for r in results]
         return Response('\n'.join(lines), mimetype='text/plain',
                         headers={'Content-Disposition': 'attachment;filename=scan_ips.txt'})
+    elif fmt == 'csv':
+        import csv
+        from io import StringIO
+        buf = StringIO()
+        w = csv.writer(buf)
+        w.writerow(EXPORT_HEADERS[lang] + (ALIVE_HEADER.get(lang, 'Alive'),))
+        for idx, r in enumerate(results, 1):
+            ports_list = json.loads(r.open_ports) if r.open_ports else []
+            real = '' if r.real_delay is None else ('failed' if r.real_delay < 0 else round(r.real_delay))
+            w.writerow([idx, r.ip or '', round(r.ping, 1) if r.ping is not None else '',
+                        ' '.join(str(p) for p in ports_list), round(r.score, 1) if r.score is not None else '',
+                        r.operator or '', colo_label(r.colo), round(r.speed, 1) if r.speed is not None else '',
+                        real, 'no' if r.alive is False else 'yes'])
+        return Response('﻿' + buf.getvalue(), mimetype='text/csv; charset=utf-8',
+                        headers={'Content-Disposition': 'attachment;filename=scan_results.csv'})
     elif fmt == 'excel':
         try:
             import openpyxl
@@ -917,7 +1047,7 @@ def export_results(fmt):
             ws.cell(row=row_idx, column=4, value=ports_str)
             ws.cell(row=row_idx, column=5, value=round(r.score, 1) if r.score is not None else '')
             ws.cell(row=row_idx, column=6, value=(r.operator or ''))
-            ws.cell(row=row_idx, column=7, value=(r.colo or ''))
+            ws.cell(row=row_idx, column=7, value=colo_label(r.colo))
             ws.cell(row=row_idx, column=8, value=round(r.speed, 1) if r.speed is not None else '')
             real = '' if r.real_delay is None else ('failed' if r.real_delay < 0 else round(r.real_delay))
             ws.cell(row=row_idx, column=9, value=real)

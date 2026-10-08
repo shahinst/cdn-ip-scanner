@@ -6,6 +6,7 @@ Author: shahinst
 import json
 
 from app import db, utcnow
+from app.scanner.colo import colo_name
 
 
 class ScanResult(db.Model):
@@ -19,6 +20,7 @@ class ScanResult(db.Model):
     colo = db.Column(db.String(10), nullable=True)   # CDN edge data center, e.g. FRA
     speed = db.Column(db.Float, nullable=True)       # download speed in KB/s (if tested)
     real_delay = db.Column(db.Float, nullable=True)  # Xray real test: ms, -1 = failed, NULL = not tested
+    alive = db.Column(db.Boolean, nullable=True)    # False once a re-test found the IP dead
     scan_session_id = db.Column(db.Integer, db.ForeignKey('scan_sessions.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=utcnow)
 
@@ -33,6 +35,8 @@ class ScanResult(db.Model):
             'colo': self.colo or '',
             'speed': self.speed,
             'real_delay': self.real_delay,
+            'alive': self.alive is not False,
+            'colo_name': colo_name(self.colo),
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -124,6 +128,7 @@ _ADDED_COLUMNS = [
     ('scan_results', 'colo', 'VARCHAR(10)'),
     ('scan_results', 'speed', 'FLOAT'),
     ('scan_results', 'real_delay', 'FLOAT'),
+    ('scan_results', 'alive', 'BOOLEAN'),
     ('scan_sessions', 'v2ray_config', 'TEXT'),
     ('scan_sessions', 'params', 'TEXT'),
 ]

@@ -24,6 +24,7 @@ const T = {
         save_btn: "\uD83D\uDCBE Save", stop_btn: "\u23F9\uFE0F Stop", start_btn: "\uD83D\uDE80 Start Scan",
         export_modal_title: "Choose export format", export_hint: "Select the format for downloading results:",
         export_json: "JSON", export_excel: "Excel", export_text: "Text (IPs only)",
+        retest_btn: "🔁 Re-test", retest_started: "Re-testing {n} IPs...", retest_done: "Re-test done: {alive} alive, {dead} dead", retest_none: "No results to re-test", copy_best_btn: "📋 Copy best IPs", best_copied: "{n} best IPs copied", export_csv: "CSV", settings_notify_scan: "Send the best IPs to Telegram when a scan finishes", dead_label: "dead",
         progress_title: "Progress", ready_status: "Ready to start",
         results_title: "Results (by speed)", rank_hdr: "Rank", ip_hdr: "IP",
         ping_hdr: "Ping", ports_hdr: "Ports", score_hdr: "Score", operator_hdr: "Operator",
@@ -99,6 +100,7 @@ const T = {
         save_btn: "\uD83D\uDCBE \u0630\u062E\u06CC\u0631\u0647", stop_btn: "\u23F9\uFE0F \u062A\u0648\u0642\u0641", start_btn: "\uD83D\uDE80 \u0634\u0631\u0648\u0639 \u0627\u0633\u06A9\u0646",
         export_modal_title: "\u0627\u0646\u062A\u062E\u0627\u0628 \u0641\u0631\u0645\u062A \u062E\u0631\u0648\u062C\u06CC", export_hint: "\u0641\u0631\u0645\u062A \u062E\u0631\u0648\u062C\u06CC \u0631\u0627 \u0628\u0631\u0627\u06CC \u062F\u0627\u0646\u0644\u0648\u062F \u0646\u062A\u0627\u06CC\u062C \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F:",
         export_json: "JSON", export_excel: "\u0627\u06A9\u0633\u0644", export_text: "\u062A\u06A9\u0633\u062A (\u0641\u0642\u0637 \u0622\u06CC\u200C\u067E\u06CC)",
+        retest_btn: "🔁 تست مجدد", retest_started: "تست مجدد {n} آی‌پی...", retest_done: "تست مجدد تمام شد: {alive} سالم، {dead} خراب", retest_none: "نتیجه‌ای برای تست مجدد نیست", copy_best_btn: "📋 کپی بهترین آی‌پی‌ها", best_copied: "{n} آی‌پی برتر کپی شد", export_csv: "CSV", settings_notify_scan: "پس از پایان اسکن، بهترین آی‌پی‌ها به تلگرام ارسال شود", dead_label: "خراب",
         progress_title: "\u067E\u06CC\u0634\u0631\u0641\u062A", ready_status: "\u0622\u0645\u0627\u062F\u0647 \u0628\u0631\u0627\u06CC \u0634\u0631\u0648\u0639",
         results_title: "\u0646\u062A\u0627\u06CC\u062C (\u0628\u0631 \u0627\u0633\u0627\u0633 \u0633\u0631\u0639\u062A)", rank_hdr: "\u0631\u062A\u0628\u0647", ip_hdr: "\u0622\u062F\u0631\u0633 IP",
         ping_hdr: "Ping", ports_hdr: "\u067E\u0648\u0631\u062A\u200C\u0647\u0627", score_hdr: "\u0627\u0645\u062A\u06CC\u0627\u0632", operator_hdr: "\u0627\u067E\u0631\u0627\u062A\u0648\u0631",
@@ -176,6 +178,7 @@ const T = {
         ports_hdr: "\u7AEF\u53E3", score_hdr: "\u5206\u6570", operator_hdr: "\u8FD0\u8425\u5546",
         log_title: "\uD83D\uDCCB \u626B\u63CF\u65E5\u5FD7", download_hdr: "\u4E0B\u8F7D",
         colo_hdr: "\u673A\u623F", speed_hdr: "\u901F\u5EA6",
+        retest_btn: "🔁 重新测试", retest_started: "正在重新测试 {n} 个 IP...", retest_done: "重新测试完成：{alive} 个可用，{dead} 个失效", retest_none: "没有可重新测试的结果", copy_best_btn: "📋 复制最佳 IP", best_copied: "已复制 {n} 个最佳 IP", export_csv: "CSV", settings_notify_scan: "扫描完成后将最佳 IP 发送到 Telegram", dead_label: "失效",
         settings_log: "\u65E5\u5FD7", settings_log_desc: "\u663E\u793A\u626B\u63CF\u65E5\u5FD7\u9762\u677F",
         settings_debug: "\u8C03\u8BD5", settings_debug_desc: "\u542F\u7528\u8C03\u8BD5\u6A21\u5F0F",
         update_checking: "\u68C0\u67E5\u66F4\u65B0\u4E2D...", update_available: "\u65B0\u7248\u672C {v} \u53EF\u7528\uFF01",
@@ -195,6 +198,7 @@ const T = {
         ports_hdr: "\u041F\u043E\u0440\u0442\u044B", score_hdr: "\u041E\u0446\u0435\u043D\u043A\u0430", operator_hdr: "\u041E\u043F\u0435\u0440\u0430\u0442\u043E\u0440",
         log_title: "\uD83D\uDCCB \u041B\u043E\u0433 \u0441\u043A\u0430\u043D\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u044F", download_hdr: "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C",
         colo_hdr: "\u0414\u0426", speed_hdr: "\u0421\u043A\u043E\u0440\u043E\u0441\u0442\u044C",
+        retest_btn: "🔁 Перепроверить", retest_started: "Перепроверка {n} IP...", retest_done: "Готово: {alive} работают, {dead} не работают", retest_none: "Нет результатов для перепроверки", copy_best_btn: "📋 Копировать лучшие IP", best_copied: "Скопировано IP: {n}", export_csv: "CSV", settings_notify_scan: "Отправлять лучшие IP в Telegram после сканирования", dead_label: "не работает",
         settings_log: "\u041B\u043E\u0433", settings_log_desc: "\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u043F\u0430\u043D\u0435\u043B\u044C \u043B\u043E\u0433\u043E\u0432",
         settings_debug: "\u041E\u0442\u043B\u0430\u0434\u043A\u0430", settings_debug_desc: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u0440\u0435\u0436\u0438\u043C \u043E\u0442\u043B\u0430\u0434\u043A\u0438",
         update_checking: "\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u0439...", update_available: "\u041D\u043E\u0432\u0430\u044F \u0432\u0435\u0440\u0441\u0438\u044F {v}!",
@@ -340,6 +344,21 @@ function initSocket() {
     socket.on('scan_result_update', data => {
         const row = document.querySelector('#resultsBody tr[data-ip="' + CSS.escape(data.ip) + '"]');
         if (!row) return;
+        if (data.alive !== undefined) {
+            row.classList.toggle('row-failed', data.alive === false);
+            row.classList.toggle('row-dead', data.alive === false);
+        }
+        if (data.ping !== undefined) {
+            row.dataset.ping = data.ping ?? '';
+            const cell = row.querySelector('.ping-cell');
+            if (cell) cell.textContent = data.alive === false ? t('dead_label') : (data.ping ? localNum(Math.round(data.ping)) + ' ms' : '—');
+        }
+        if (data.colo !== undefined) {
+            row.dataset.colo = data.colo || '';
+            const cell = row.querySelector('.colo-cell');
+            if (cell) { cell.textContent = data.colo || '—'; cell.title = data.colo_name || ''; }
+            addColoOption(data.colo, data.colo_name);
+        }
         if (data.speed !== undefined) {
             row.querySelector('.speed-cell').textContent = formatSpeed(data.speed);
             row.dataset.speed = data.speed ?? '';
@@ -366,6 +385,13 @@ function initSocket() {
         addLog('ERROR', 'Scan error: ' + (data.error || 'Unknown'));
     });
 
+    socket.on('retest_complete', data => {
+        isRetesting = false;
+        const btn = document.getElementById('btnRetest');
+        if (btn) btn.disabled = false;
+        showToast(t('retest_done').replace('{alive}', localNum(data.alive || 0)).replace('{dead}', localNum(data.dead || 0)));
+        applyResultsView();
+    });
     socket.on('scan_log', data => { addLog(data.level, data.message); });
     socket.on('favorites_update', data => {
         if (!document.getElementById('favoritesModal')?.classList.contains('hidden')) renderFavorites(data.favorites || []);
@@ -425,10 +451,10 @@ function addResultRow(data) {
         '<td><button type="button" class="btn-star" title="' + escapeHtml(t('favorites_btn')) + '">\u2606</button> ' +
             localNum('#' + resultCount) + '</td>' +
         '<td class="ip-cell" data-ip="' + ipText + '">' + ipText + '</td>' +
-        '<td>' + ping + '</td>' +
+        '<td class="ping-cell">' + ping + '</td>' +
         '<td>' + (ports || '\u2014') + '</td>' +
         '<td class="score-cell">' + score + '</td>' +
-        '<td>' + escapeHtml(data.colo || '\u2014') + '</td>' +
+        '<td class="colo-cell" title="' + escapeHtml(data.colo_name || '') + '">' + escapeHtml(data.colo || '—') + '</td>' +
         '<td class="speed-cell">' + formatSpeed(data.speed) + '</td>';
     if (showOperator) {
         cells += '<td>' + operatorText + '</td>';
@@ -449,8 +475,9 @@ function addResultRow(data) {
         if (btn) btn.addEventListener('click', () => downloadV2rayConfig(data.ip));
         row.querySelector('.btn-qr')?.addEventListener('click', () => showConfigQr(data.ip));
     }
+    if (data.alive === false) row.classList.add('row-failed', 'row-dead');
     tbody.appendChild(row);
-    addColoOption(data.colo);
+    addColoOption(data.colo, data.colo_name);
     applyResultsView();
 }
 
@@ -503,12 +530,12 @@ function setSort(key) {
     applyResultsView();
 }
 
-function addColoOption(colo) {
+function addColoOption(colo, coloName) {
     const sel = document.getElementById('coloFilter');
     if (!sel || !colo || Array.from(sel.options).some(o => o.value === colo)) return;
     const opt = document.createElement('option');
     opt.value = colo;
-    opt.textContent = colo;
+    opt.textContent = coloName ? colo + ' — ' + coloName : colo;
     sel.appendChild(opt);
 }
 
@@ -819,6 +846,8 @@ async function loadSettings() {
     document.getElementById('settingTgToken').value = s.telegram_token || '';
     document.getElementById('settingTgChat').value = s.telegram_chat_id || '';
     document.getElementById('settingTgProxy').value = s.telegram_proxy || '';
+    const notifyEl = document.getElementById('settingNotifyScan');
+    if (notifyEl) notifyEl.checked = (s.notify_scan_complete === 'true');
     if (s.theme) setTheme(s.theme);
     // Log checkbox
     const logEl = document.getElementById('settingLogEnabled');
@@ -861,6 +890,7 @@ async function saveSettings(opts) {
         telegram_token: document.getElementById('settingTgToken')?.value.trim() || '',
         telegram_chat_id: document.getElementById('settingTgChat')?.value.trim() || '',
         telegram_proxy: document.getElementById('settingTgProxy')?.value.trim() || '',
+        notify_scan_complete: document.getElementById('settingNotifyScan')?.checked ? 'true' : 'false',
         log_enabled: logEnabledVal ? 'true' : 'false',
         debug_enabled: debugEnabledVal ? 'true' : 'false',
         theme: theme,
@@ -1105,6 +1135,29 @@ async function fetchAllOperators() {
     showToast(lang === 'fa' ? '\u0647\u0645\u0647 \u0631\u0646\u062C\u200C\u0647\u0627\u06CC \u0627\u067E\u0631\u0627\u062A\u0648\u0631 \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u062F' : 'All operator ranges fetched');
 }
 
+// ===== Re-test & copy best =====
+let isRetesting = false;
+
+async function retestResults() {
+    if (!sessionId || resultCount === 0) { showToast(t('retest_none')); return; }
+    if (isScanning || isRetesting) return;
+    const res = await api('/scan/retest', 'POST', { session_id: sessionId });
+    if (!res || res.error) { showToast(res?.error || 'Error'); return; }
+    isRetesting = true;
+    const btn = document.getElementById('btnRetest');
+    if (btn) btn.disabled = true;
+    showToast(t('retest_started').replace('{n}', localNum(res.count || 0)));
+}
+
+async function copyBestIps(n) {
+    const rows = Array.from(document.querySelectorAll('#resultsBody tr'))
+        .filter(r => !r.classList.contains('hidden') && !r.classList.contains('row-failed'));
+    if (!sortKey) rows.sort((a, b) => Number(b.dataset.score || 0) - Number(a.dataset.score || 0));
+    const ips = rows.slice(0, n || 10).map(r => r.dataset.ip);
+    if (!ips.length) { showToast(t('retest_none')); return; }
+    if (await copyText(ips.join('\n'))) showToast(t('best_copied').replace('{n}', localNum(ips.length)));
+}
+
 // ===== Export & Reset =====
 function exportResults(fmt) {
     let url = '/api/export/' + fmt;
@@ -1279,6 +1332,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnStop')?.addEventListener('click', stopScan);
     document.getElementById('btnAddRange')?.addEventListener('click', addRange);
     document.getElementById('btnReset')?.addEventListener('click', resetData);
+    document.getElementById('btnRetest')?.addEventListener('click', retestResults);
+    document.getElementById('btnCopyBest')?.addEventListener('click', () => copyBestIps(10));
     document.getElementById('scanMethod')?.addEventListener('change', onScanMethodChange);
     document.getElementById('btnParseConfig')?.addEventListener('click', parseV2RayConfig);
     document.getElementById('operatorCountry')?.addEventListener('change', loadOperators);
