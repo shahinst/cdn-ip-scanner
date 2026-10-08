@@ -825,6 +825,7 @@ function apiWithTimeout(url, method, body, timeoutMs) {
 
 // ===== Settings =====
 async function loadSettings() {
+    if (!document.getElementById('settingMode')) return; // landing page has no settings form
     const s = await api('/settings');
     if (s.mode) document.getElementById('settingMode').value = s.mode;
     if (s.target_count) document.getElementById('settingTarget').value = s.target_count;
@@ -1112,9 +1113,10 @@ async function parseV2RayConfig() {
 
 // ===== Operators =====
 async function loadOperators() {
+    const select = document.getElementById('operatorSelect');
+    if (!select) return; // landing page has no scanner form
     const country = document.getElementById('operatorCountry')?.value || 'ir';
     const data = await api('/ranges/operators?country=' + country);
-    const select = document.getElementById('operatorSelect');
     select.innerHTML = '';
     const keys = Object.keys(data);
     for (const key of keys) {
