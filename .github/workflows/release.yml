@@ -137,4 +137,4 @@ jobs:
           else
             echo "Publishing with npm trusted publishing (OIDC)"
           fi
-          npm publish dist/CDN-IP-Scanner-*-npm.tgz --access public
+          npm publish ./dist/CDN-IP-Scanner-*-npm.tgz --access public
