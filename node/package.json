@@ -1,6 +1,6 @@
 {
   "name": "cdn-ip-scanner",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "CDN IP Scanner - find the fastest Cloudflare/Fastly edge IPs (web UI, V2Ray config tests, favorites monitor)",
   "type": "module",
   "bin": {

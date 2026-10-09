@@ -124,10 +124,17 @@ jobs:
             dist/SHA256SUMS.txt
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          registry-url: https://registry.npmjs.org
-      - name: Publish to npm (needs the NPM_TOKEN secret)
-        if: env.NODE_AUTH_TOKEN != ''
+          node-version: '22'
+      - name: Publish to npm (trusted publishing via OIDC, or NPM_TOKEN if set)
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish dist/CDN-IP-Scanner-*-npm.tgz --access public
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm install -g npm@latest
+          npm --version
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
+            echo "Publishing with NPM_TOKEN"
+          else
+            echo "Publishing with npm trusted publishing (OIDC)"
+          fi
+          npm publish dist/CDN-IP-Scanner-*-npm.tgz --access public

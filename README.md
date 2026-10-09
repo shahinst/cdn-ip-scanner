@@ -330,7 +330,7 @@ cd android
 
 Release APKs on GitHub are built by `release.yml`; set the repository secrets `ANDROID_KEYSTORE_BASE64`,
 `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` to sign them with your own key
-(otherwise a debug key is used). Set `NPM_TOKEN` to publish the npm package automatically on every tag.
+(otherwise a debug key is used). The npm package is published on every tag through npm trusted publishing (OIDC, no secret needed); an `NPM_TOKEN` secret is used instead if present.
 
 ### Tech stack
 
@@ -369,7 +369,7 @@ cdn-ip-scanner/
 - **npm app replaces the desktop bundles.** `npm install -g cdn-ip-scanner` gives you the full scanner on Windows, macOS and Linux, started with `cdn-ip-scanner --port <port>`. It is a complete port of the server to Node.js (Express + Socket.IO) with the identical feature set: all three scan methods, Xray real test, speed test, favorites monitor with Telegram, resume, re-test, exports (JSON / Excel / CSV / TXT), Clash & sing-box, QR, subscription, diagnostics, four languages and self-update. Data is stored as JSON in `~/.cdn-ip-scanner`; no native modules, no compiler.
 - **New web UI theme.** Dashboard-style layout, design tokens, refined light and dark palettes, stat tiles, pill buttons, sticky translucent header, better tables and modals, RTL polish. The saved theme is applied server-side so there is no flash of the wrong theme on load.
 - **New Android theme.** Material 3 brand palette (blue / violet / emerald), branded top bar, stat tiles on the scan card, elevated result cards, status badges (UP / DOWN / dead), section headings and a modern progress bar, in light and dark.
-- **Release pipeline.** Every tag publishes the npm tarball, the Android APK and `SHA256SUMS.txt`, and publishes to npmjs.com when `NPM_TOKEN` is set. CI runs the Node suite on Linux, Windows and macOS with Node 18 and 22, the Python suite, and the Android build + unit tests.
+- **Release pipeline.** Every tag publishes the npm tarball, the Android APK and `SHA256SUMS.txt`, and publishes to npmjs.com through npm trusted publishing (or `NPM_TOKEN` if set). CI runs the Node suite on Linux, Windows and macOS with Node 18 and 22, the Python suite, and the Android build + unit tests.
 - **Fixes.** Fastly data-center codes no longer include cache-node digits (`SOF1510038` → `SOF`); the Android app restores the last scan's results after a restart.
 - **Retired.** PyInstaller `.exe` / `.app` / Linux tarballs. Use the npm app instead; the Python server and `install.sh` remain for Linux servers.
 

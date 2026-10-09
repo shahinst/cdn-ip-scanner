@@ -83,7 +83,7 @@ A PR is merged only when all checks are green.
 2. After it is merged, tag **that merge commit on `main`**:
    `git fetch origin && git tag v3.0 origin/main && git push origin v3.0`
 3. The *Build & Release* workflow packs the npm app, builds the Android APK and publishes both
-   with `SHA256SUMS.txt`; with the `NPM_TOKEN` secret it also runs `npm publish`. It fails on
+   with `SHA256SUMS.txt`; it also runs `npm publish` using npm trusted publishing (OIDC), or the `NPM_TOKEN` secret if present. It fails on
    purpose if the tag and the `version` file differ.
 
 ## Reporting bugs

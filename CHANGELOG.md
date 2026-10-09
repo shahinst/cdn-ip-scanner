@@ -3,6 +3,16 @@
 All notable changes to CDN IP Scanner. The version number lives in the `version` file and is read by the
 npm package, the Android app and the Python server.
 
+## 3.0.1 — 2026-10-09
+
+### Changed
+- Release workflow publishes to npmjs.com through npm trusted publishing (OIDC); a `NPM_TOKEN` secret is used only if present.
+- `package.json` repository URL normalized.
+
+### Fixed
+- Landing page no longer logs console errors for settings and operator loading.
+- README split into English (`README.md`, default) and Persian (`README.fa.md`) with a step-by-step npm install guide.
+
 ## 3.0 — 2026-10-09
 
 ### Added
